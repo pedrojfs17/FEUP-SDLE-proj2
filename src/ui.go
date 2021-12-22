@@ -9,53 +9,37 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/libp2p/go-libp2p-core/host"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	discovery "github.com/libp2p/go-libp2p-discovery"
 	"github.com/rivo/tview"
 )
 
-// UI is a Text User Interface (TUI) for a UserSubscription.
+// UI is a Text User Interface (TUI) for a User.
 // The Run method will draw the UI to the terminal in "fullscreen"
 // mode. You can quit with Ctrl-C, or by typing "/quit" into the
 // chat prompt.
 type UI struct {
-	cx            context.Context
-	h             host.Host
-	nick          string
-	subscriptions map[string]*UserSubscription
-	app           *tview.Application
-	peersList     *tview.TextView
-	activeSub     string
-	msgW          io.Writer
-	inputCh       chan string
-	doneCh        chan struct{}
+	cx context.Context
+
+	nick      string
+	user      *User
+	app       *tview.Application
+	peersList *tview.TextView
+	activeSub string
+	msgW      io.Writer
+	inputCh   chan string
+	doneCh    chan struct{}
 }
 
 // NewChatUI returns a new UI struct that controls the text UI.
 // It won't actually do anything until you call Run().
-func NewChatUI(cx context.Context, nick string, h host.Host) *UI {
+func NewChatUI(cx context.Context, nick string, h host.Host, routingDiscovery *discovery.RoutingDiscovery) *UI {
 	app := tview.NewApplication()
 
-	// create a new PubSub service using the GossipSub router
-	ps, err := pubsub.NewGossipSub(cx, h)
-	if err != nil {
-		panic(err)
-	}
-
-	// setup local mDNS discovery
-	if err := setupDiscovery(h); err != nil {
-		panic(err)
-	}
-
 	// join the chat room
-	subscription, err := SubscribeUser(cx, ps, h.ID(), nick, nick)
+	user, err := CreateUser(cx, h, routingDiscovery, nick)
 	if err != nil {
 		panic(err)
 	}
-
-	subscriptions := map[string]*UserSubscription{
-		nick: subscription,
-	}
-
 	// make a text view to contain our chat messages
 	msgBox := tview.NewTextView()
 	msgBox.SetDynamicColors(true)
@@ -121,16 +105,15 @@ func NewChatUI(cx context.Context, nick string, h host.Host) *UI {
 	app.SetRoot(flex, true)
 
 	return &UI{
-		cx:            cx,
-		h:             h,
-		nick:          nick,
-		subscriptions: subscriptions,
-		activeSub:     nick,
-		app:           app,
-		peersList:     peersList,
-		msgW:          msgBox,
-		inputCh:       inputCh,
-		doneCh:        make(chan struct{}, 1),
+		cx:        cx,
+		nick:      nick,
+		user:      user,
+		activeSub: nick,
+		app:       app,
+		peersList: peersList,
+		msgW:      msgBox,
+		inputCh:   inputCh,
+		doneCh:    make(chan struct{}, 1),
 	}
 }
 
@@ -151,7 +134,7 @@ func (ui *UI) end() {
 // refreshPeers pulls the list of peers currently in the chat room and
 // displays the last 8 chars of their peer id in the Peers panel in the ui.
 func (ui *UI) refreshPeers() {
-	peers := ui.subscriptions[ui.activeSub].ListPeers()
+	peers := ui.user.ListPeers()
 
 	// clear is not threadsafe so we need to take the lock.
 	ui.peersList.Lock()
@@ -159,7 +142,7 @@ func (ui *UI) refreshPeers() {
 	ui.peersList.Unlock()
 
 	for _, p := range peers {
-		fmt.Fprintln(ui.peersList, shortID(p))
+		fmt.Fprintln(ui.peersList, p)
 	}
 
 	ui.app.Draw()
@@ -167,15 +150,15 @@ func (ui *UI) refreshPeers() {
 
 // displayChatMessage writes a Message from the room to the message window,
 // with the sender's nick highlighted in green.
-func (ui *UI) displayChatMessage(cm *Message) {
-	prompt := withColor("green", fmt.Sprintf("<%s>:", cm.SenderNick))
+func (ui *UI) displayChatMessage(t time.Time, cm *Message) {
+	prompt := withColor("green", fmt.Sprintf("%s  - <%s>:", t.Format("2006-01-02 15:04"), cm.SenderNick))
 	fmt.Fprintf(ui.msgW, "%s %s\n", prompt, cm.Message)
 }
 
 // displaySelfMessage writes a message from ourself to the message window,
 // with our nick highlighted in yellow.
-func (ui *UI) displaySelfMessage(msg string) {
-	prompt := withColor("yellow", fmt.Sprintf("<%s>:", ui.subscriptions[ui.activeSub].nick))
+func (ui *UI) displaySelfMessage(t time.Time, msg string) {
+	prompt := withColor("yellow", fmt.Sprintf("%s  - <%s>:", t.Format("2006-01-02 15:04"), ui.user.user))
 	fmt.Fprintf(ui.msgW, "%s %s\n", prompt, msg)
 }
 
@@ -192,15 +175,16 @@ func (ui *UI) handleEvents() {
 			// when the user types in a line, publish it to the chat room and print to the message window
 			ui.handleInput(input)
 
-		case m := <-ui.subscriptions[ui.activeSub].Messages:
+		case m := <-ui.user.Messages:
+			ui.user.history[m.Time] = m
 			// when we receive a message from the chat room, print it to the message window
-			ui.displayChatMessage(m)
+			ui.displayChatMessage(m.Time, m)
 
 		case <-peerRefreshTicker.C:
 			// refresh the list of peers in the chat room periodically
 			ui.refreshPeers()
 
-		case <-ui.subscriptions[ui.activeSub].ctx.Done():
+		case <-ui.user.ctx.Done():
 			return
 
 		case <-ui.doneCh:
@@ -214,44 +198,28 @@ func withColor(color, msg string) string {
 	return fmt.Sprintf("[%s]%s[-]", color, msg)
 }
 
-
 func (ui *UI) handleInput(input string) {
 	if input[0:1] == "/" {
 		if input[1:4] == "sub" {
-			ui.subscribe(strings.Trim(input[4:], " "))
+			user := strings.Trim(input[4:], " ")
+			fmt.Println("Subscribing...")
+			discovery.Advertise(ui.user.ctx, ui.user.routingDiscovery, user)
+			fmt.Println("Successfully subsribed!")
+			ui.user.Communicate(user,true)
 		} else if input[1:4] == "get" {
 			ui.get(strings.Trim(input[4:], " "))
 		}
 	} else {
-		err := ui.subscriptions[ui.nick].Publish(input)
-		if err != nil {
-			printErr("publish error: %s", err)
-		}
-		ui.displaySelfMessage(input)
+		m := ui.user.Post(input)
+		ui.displaySelfMessage(m.Time, input)
 	}
-}
-
-func (ui *UI) subscribe(user string) {
-	// create a new PubSub service using the GossipSub router
-	ps, err := pubsub.NewGossipSub(ui.cx, ui.h)
-	if err != nil {
-		panic(err)
-	}
-
-	// join the chat room
-	subscription, err := SubscribeUser(ui.cx, ps, ui.h.ID(), ui.nick, user)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Subscribed to %s\n", user)
-	ui.subscriptions[user] = subscription
 }
 
 func (ui *UI) get(user string) {
 	ui.activeSub = user
-	fmt.Fprintf(ui.msgW, strings.Repeat("\n", 20))
-	fmt.Printf("\nGetting %s's timeline\n", user)
-	for m := range ui.subscriptions[ui.activeSub].Messages {
-		ui.displayChatMessage(m)
+	fmt.Printf("\nGetting %s's timeline\n", ui.activeSub)
+	fmt.Println(ui.user.subscriptions[ui.activeSub])
+	for time, m := range ui.user.subscriptions[ui.activeSub] {
+		ui.displayChatMessage(time, m)
 	}
 }
