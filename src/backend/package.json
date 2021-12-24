@@ -25,5 +25,4 @@
     "libp2p-websockets": "^0.16.2",
     "peer-id": "^0.16.0"
   }
-  
 }
