@@ -81,9 +81,97 @@ const start = async () => {
   })
 
   await node.start()
-
   console.log("Initiated Node")
+
+  const listen = node.transportManager.getAddrs()
+  console.log("Listening: ",listen)
+
+  const advertise = node.multiaddrs
+  console.log("Advertising: ",advertise)
+  
   return node
 }
 
-start()
+function printAddrs (node ) {
+  console.log('node %s is listening on:')
+  node.multiaddrs.forEach((ma) => console.log(`${ma.toString()}/p2p/${node.peerId.toB58String()}`))
+}
+
+const n = await start()
+
+// At this point the node has started
+console.log('node has started (true/false):', n.isStarted())
+
+printAddrs(n)
+
+
+
+async function getUsername(peerID) {
+  return new Promise(resolve => {
+    n.dialProtocol(peerID, ['/user']).then( async ({stream}) => {
+      await pipe(
+        stream,
+        async function(source) {
+          for await (const msg of source) {
+            resolve({message: msg.toString()})
+            return
+          }
+        }
+      )
+    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
+  })
+}
+
+//  Requesting to Get 
+// Steps:
+// - send username we want
+const { stream: stream1 } = await n.dialProtocol(n2.peerId, ['/get'])
+await pipe(
+  n2.peerId,
+  stream1
+)
+
+// Handler to get the timeline of a peer
+// Steps:
+// - Find Providers of peer's timeline
+// - Connect to first provider
+// - Retrieve timeline
+
+async function getTimeline(username) {
+  return new Promise(resolve => {
+    n.dialProtocol(peerID, ['/timeline']).then( async ({stream}) => {
+      await pipe(
+        stream,
+        async function(source) {
+          for await (const msg of source) {
+            resolve({message: msg.toString()})
+            return
+          }
+        }
+      )
+    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
+  })
+}
+
+// Handler to follow to a peer
+// Steps:
+// - Find Providers of peer's timeline
+// - Connect to first provider
+// - Retrieve timeline
+// - Store user's timeline
+// - Announce provide
+async function getTimeline(username) {
+  return new Promise(resolve => {
+    n.dialProtocol(peerID, ['/follow']).then( async ({stream}) => {
+      await pipe(
+        stream,
+        async function(source) {
+          for await (const msg of source) {
+            resolve({message: msg.toString()})
+            return
+          }
+        }
+      )
+    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
+  })
+}
