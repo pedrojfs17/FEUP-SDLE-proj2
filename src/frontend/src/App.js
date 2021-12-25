@@ -1,18 +1,18 @@
 import React from 'react';
-import { Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
 import { NavBar } from "./components"
-import { FeedPage, ProfilePage } from './pages'
+import { Feed, Profile } from './pages'
 
 export default function App() {
   return (
-    <>
+    <Router>
       <NavBar></NavBar>
       <Routes>
-        <Route exact path="/" element={<FeedPage/>} />
-        <Route path="/profile/:username" component={<ProfilePage/>} />
+        <Route path="/" element={<Feed/>}/>
+        <Route path="/profile/:username" element={<Profile/>}/>
       </Routes>
-    </>
+    </Router>
     
   );
 }

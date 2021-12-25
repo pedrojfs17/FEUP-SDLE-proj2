@@ -1,4 +1,4 @@
-import FeedPage from './FeedPage'
-import ProfilePage from './ProfilePage'
+import Feed from './Feed'
+import Profile from './Profile'
 
-export { FeedPage, ProfilePage }
+export { Feed, Profile }
