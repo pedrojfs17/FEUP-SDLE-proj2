@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      dockerfile: Dockerfile
+      context: "./backend"
+    environment:
+      - PORT=${REACT_APP_BACKEND_PORT}
+    ports:
+      - ${REACT_APP_BACKEND_PORT}:${REACT_APP_BACKEND_PORT}
+    volumes:
+      - /app/node_modules
+      - ./backend:/app
+
+  frontend:
+    build:
+      dockerfile: Dockerfile
+      context: ./frontend
+    environment:
+      - PORT=${REACT_APP_FRONTEND_PORT}
+      - REACT_APP_BACKEND_PORT=${REACT_APP_BACKEND_PORT}
+    ports:
+      - ${REACT_APP_FRONTEND_PORT}:${REACT_APP_FRONTEND_PORT}
+    volumes:
+      - /app/node_modules
+      - ./frontend:/app

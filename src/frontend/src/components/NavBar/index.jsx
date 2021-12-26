@@ -6,7 +6,7 @@ import Button from '@mui/material/Button'
 import Toolbar from '@mui/material/Toolbar';
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
@@ -51,13 +51,26 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
   },
 }));
 
+const Offset = styled('div')(({ theme }) => theme.mixins.toolbar);
+
 export default function NavBar() {
+  const navigate = useNavigate();
+  const [search, setSearch] = React.useState("");
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      navigate("/profile/" + search)
+      setSearch("")
+    }
+  }
+
   return (
     <Box>
-      <AppBar position="static" color="secondary" sx={{padding: { xs: '1em 1em', lg: '1em 10em' }}}>
+      <AppBar position="fixed" color="secondary" sx={{padding: { xs: '1em 1em', lg: '1em 10em' }}}>
         <Toolbar>
           <Box sx={{ flexGrow: 1, display: { xs: 'none', sm: 'block' }  }}>
-            <Link to="/"><img src="./logo.png" alt="bug" height={48} /></Link>
+            <Link to="/"><img src="/logo.png" alt="bug" height={48} /></Link>
           </Box>
           <Button size="large" sx={{ fontWeight: 'bold' }}><Link to="/">Feed</Link></Button>
           <Button sx={{ margin: '0em 2em', fontWeight: 'bold' }}><Link to="/profile/pedrojfs17">Profile</Link></Button>
@@ -67,11 +80,14 @@ export default function NavBar() {
             </SearchIconWrapper>
             <StyledInputBase
               placeholder="Search Users…"
-              inputProps={{ 'aria-label': 'search' }}
+              value={search}
+              onKeyUp={handleKeyDown.bind(this)}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </Search>
         </Toolbar>
       </AppBar>
+      <Offset sx={{padding: '1em'}} />
     </Box>
   );
 }

@@ -1,26 +1,50 @@
 import React from 'react';
-import Container from '@mui/material/Container'
-import { Divider, FeedStack, PublishForm } from '../../components';
+import { useParams } from 'react-router-dom'
+import axios from "axios";
+import { Box, CircularProgress, Container } from '@mui/material'
+import { Divider, FeedStack, ProfileInfo, PublishForm } from '../../components';
 
-const publications = [
-  {
-    username: "pedrojfs17",
-    timestamp: "10m",
-    text: "I am liking this project so much. I wish I could make distributed facebook as weel since we could put some photos of people."
-  },
-  {
-    username: "pedrojfs17",
-    timestamp: "42m",
-    text: "Sometimes I think I am going crazy, but no, I am just tired of this bullshit. Please help...."
-  }
-]
+const { REACT_APP_BACKEND_PORT } = process.env;
+
+const baseURL = `http://localhost:${REACT_APP_BACKEND_PORT}/user/`;
 
 export default function Profile() {
+  const { username } = useParams();
+  const [data, setData] = React.useState(null);
+
+  React.useEffect(() => {
+    axios.get(baseURL + username).then((response) => {
+      setData(response.data);
+    });
+  }, [username]);
+
+  if (!data) return (
+    <Container maxWidth="md">
+      <Box sx={{ margin: '5em', display: 'flex',justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
+    </Container>
+  );
+
+  if (data.err) return (
+    <Container maxWidth="md">
+      <Box sx={{ margin: '5em', display: 'flex',justifyContent: 'center' }}>
+        {data.err}
+      </Box>
+    </Container>
+  );
+
   return (
     <Container maxWidth="md">
-      <PublishForm/>
+      <ProfileInfo data={data}/>
+      {username === "pedrojfs17" && (
+        <>
+          <Divider/>
+          <PublishForm/>
+        </>
+      )}
       <Divider/>
-      <FeedStack data={publications}/>
+      <FeedStack data={data}/>
     </Container>
   );
 }

@@ -9,10 +9,16 @@ const FeedContainer = styled('div')(({ theme }) => ({
 }));
 
 export default function FeedStack({ data }) {
+  if (!data.posts) return (
+    <FeedContainer>
+      No Posts!
+    </FeedContainer>
+  );
+
   return (
     <FeedContainer>
       <Stack spacing={5}>
-        {data.map((pub, idx) => (<FeedItem key={idx} data={pub}/>))}
+        {data.posts.map((pub, idx) => (<FeedItem key={idx} data={pub}/>))}
       </Stack>
     </FeedContainer>
   );
