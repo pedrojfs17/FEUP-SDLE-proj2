@@ -6,6 +6,8 @@ const MulticastDNS = require('libp2p-mdns')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
+const multihashing = require('multihashing-async')
+const CID = require('cids')
 
 const d = new Date();
 function printAddrs (node) {
@@ -79,10 +81,10 @@ const startNode = async () => {
     followers: new Set([]),
     following: new Set([node.peerId.toB58String()])
   }
-  
-  node.handle("/user", (stream) => {
+
+  node.handle("/timeline", (stream) => {
     pipe(
-      JSON.stringify({info: node.app, posts: getTimeline(node.app.user)}),
+      JSON.stringify(getTimeline(node.app.user)),
       stream
     )
   })
@@ -100,24 +102,18 @@ const startNode = async () => {
   console.log('node has started (true/false):', node.isStarted())
 
   printAddrs(node)
-
-
-
-  //  Requesting to Get 
-  // Steps:
-  // - send username we want
-  // const { stream: stream1 } = await node.dialProtocol(n2.peerId, ['/get'])
-  // await pipe(
-  //   n2.peerId,
-  //   stream1
-  // )
   return node
 }
 
-let node = await startNode()
+let node
 
-function getTimeline(user) {
-  node.contentRouting.get(new TextEncoder().encode(user)).then(
+startNode().then(
+  result =>{
+    node = result
+  })
+
+async function getTimeline(user) {
+  let result = await node.contentRouting.get(new TextEncoder().encode(user)).then(
     // If there is a timeline
     msg => {
       let msgString = new TextDecoder().decode(msg.val)
@@ -128,7 +124,8 @@ function getTimeline(user) {
       return []
     }
   )
-  }
+  return result
+}
 
 // Frontend Communication
 
@@ -193,20 +190,20 @@ const timelines = [
   }
 ]
 
-function createCID(string) {
-  const bytes = json.encode(string)
+async function createCID(string) {
+  const bytes = new TextEncoder('utf8').encode(string)
 
   const hash = await multihashing(bytes, 'sha2-256')
-  const cid = new CID(1, json.code, hash)
+  const cid = new CID(1, 112, hash)
   return cid
 }
 
-const feedHandler = (req, res) => {
-
+const feedHandler = async (req, res) => {
   let posts = []
 
+  console.log(node.app)
   for (let user of node.app.following) {
-    posts= posts.concat(getTimeline(user))
+    posts= posts.concat(await getTimeline(user))
   }
 
   res.json({ posts: posts });
@@ -218,16 +215,15 @@ const feedHandler = (req, res) => {
 // - Find Providers of peer's timeline
 // - Connect to first provider
 // - Retrieve timeline
-const getUserHandler = (req, res) => {
-
-  if(node.app.following.has(req.user)) {
-    node.contentRouting.get(new TextEncoder().encode(req.user)).then(
-      res.json({info: node.app, posts: getTimeline(node.app.user)})
-    )
+const getUserHandler = async (req, res) => {
+  if(node.app.following.has(req.params.username)) {
+    let timeline = await getTimeline(req.params.username)
+    res.json(timeline)
   } else {
-
-    for await (const provider of node.contentRouting.findProviders(createCID(req.user))) {
-      node.dialProtocol(provider.id, ['/user']).then( async ({stream}) => {
+    let cid = await createCID(req.params.username)
+    console.log(cid)
+    for await (const provider of node.contentRouting.findProviders(cid)) {
+      node.dialProtocol(provider.id, ['/timeline']).then( async ({stream}) => {
         await pipe(
           stream,
           async function(source) {
@@ -241,6 +237,11 @@ const getUserHandler = (req, res) => {
     }
   }
 
+}
+
+function updateTimeline(timeline) {
+  node.contentRouting.put(new TextEncoder().encode(node.app.user),new TextEncoder().encode(JSON.stringify(timeline)),{minPeers: 5})
+  node.contentRouting.provide(createCID(node.app.user))
 }
 
 // Handler to publish a new post
@@ -257,8 +258,8 @@ const postHandler = (req, res) => {
   }
 
   const putTimeline = (timeline) => {
-    node.contentRouting.put(new TextEncoder().encode(node.app.user),new TextEncoder().encode(JSON.stringify(timeline)),{minPeers: 5})
-    node.contentRouting.provide(createCID(node.app.user))
+    updateTimeline(timeline)
+    node.pubsub.publish(post.user,new TextEncoder().encode(JSON.stringify(post)))
   }
 
   let timeline = getTimeline(node.app.user)
@@ -274,20 +275,19 @@ const postHandler = (req, res) => {
 // - Retrieve timeline
 // - Store user's timeline
 // - Announce provide
-async function followUser(username) {
-  return new Promise(resolve => {
-    node.dialProtocol(peerID, ['/follow']).then( async ({stream}) => {
-      await pipe(
-        stream,
-        async function(source) {
-          for await (const msg of source) {
-            resolve({message: msg.toString()})
-            return
-          }
-        }
-      )
-    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
+const followHandler = (req, res) => {
+  node.pubsub.on(req.body.user, (msg) => {
+    //Add post to timeline
+    //Provide
+    let postStr = new TextDecoder().decode(msg.data)
+    let post = JSON.parse(postStr)
+
+    let timeline = getTimeline(req.body.user)
+    timeline.push(post)
+    updateTimeline(timeline)
   })
+
+  node.pubsub.subscribe(req.body.user)
 }
 
 const express = require("express");
@@ -304,6 +304,7 @@ app.use(cors())
 
 app.get("/feed", feedHandler)
 app.post("/post", postHandler)
+app.post("/follow", followHandler)
 
 //app.post("/feed", postHandler)
 

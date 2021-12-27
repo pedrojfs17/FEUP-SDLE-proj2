@@ -15,7 +15,6 @@ export default function Feed() {
       setData(response.data);
     });
   }, []);
-
   if (!data) return (
     <Container maxWidth="md">
       <Box sx={{ margin: '5em', display: 'flex',justifyContent: 'center' }}>

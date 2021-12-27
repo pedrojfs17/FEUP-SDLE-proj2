@@ -11,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "cids": "^1.1.9",
     "cors": "^2.8.5",
     "express": "^4.17.2",
     "ipfs-http-client": "^55.0.0",
@@ -24,6 +25,7 @@
     "libp2p-noise": "^4.0.0",
     "libp2p-tcp": "^0.17.2",
     "libp2p-websockets": "^0.16.2",
+    "multihashing-async": "^2.1.4",
     "peer-id": "^0.16.0"
   }
 }
