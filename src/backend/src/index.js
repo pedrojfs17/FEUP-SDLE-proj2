@@ -1,16 +1,13 @@
 const Libp2p = require('libp2p')
 const TCP = require('libp2p-tcp')
-const WS = require('libp2p-websockets')
 const MPLEX = require('libp2p-mplex')
 const { NOISE } = require('libp2p-noise')
 const MulticastDNS = require('libp2p-mdns')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
-const ipfsHttpClient = require('ipfs-http-client')
-const DelegatedPeerRouter = require('libp2p-delegated-peer-routing')
-const DelegatedContentRouter = require('libp2p-delegated-content-routing')
 const PeerId = require('peer-id')
 
+const d = new Date();
 function printAddrs (node) {
   console.log('node %s is listening on:', node.peerId.toB58String())
   node.multiaddrs.forEach((ma) => console.log(`${ma.toString()}/p2p/${node.peerId.toB58String()}`))
@@ -19,18 +16,6 @@ function printAddrs (node) {
 const startNode = async () => {
   // create a peerId
   const peerId = await PeerId.create()
-
-  const delegatedPeerRouting = new DelegatedPeerRouter(ipfsHttpClient.create({
-    host: 'node0.delegate.ipfs.io', // In production you should setup your own delegates
-    protocol: 'https',
-    port: 443
-  }))
-
-  const delegatedContentRouting = new DelegatedContentRouter(peerId, ipfsHttpClient.create({
-    host: 'node0.delegate.ipfs.io', // In production you should setup your own delegates
-    protocol: 'https',
-    port: 443
-  }))
 
   const node = await Libp2p.create({
     addresses: {
@@ -88,6 +73,20 @@ const startNode = async () => {
     console.log('Connected to %s', connection.remotePeer.toB58String()) // Log connected peer
   })
 
+  node.app = {
+    user: node.peerId.toB58String(),
+    peerId: node.peerId.toB58String(),
+    followers: new Set([]),
+    following: new Set([node.peerId.toB58String()])
+  }
+  
+  node.handle("/user", (stream) => {
+    pipe(
+      JSON.stringify({info: node.app, posts: getTimeline(node.app.user)}),
+      stream
+    )
+  })
+
   await node.start()
   console.log("Initiated Node")
 
@@ -102,6 +101,8 @@ const startNode = async () => {
 
   printAddrs(node)
 
+
+
   //  Requesting to Get 
   // Steps:
   // - send username we want
@@ -113,70 +114,21 @@ const startNode = async () => {
   return node
 }
 
-startNode()
+let node = await startNode()
 
-async function getUsername(peerID) {
-  return new Promise(resolve => {
-    n.dialProtocol(peerID, ['/user']).then( async ({stream}) => {
-      await pipe(
-        stream,
-        async function(source) {
-          for await (const msg of source) {
-            resolve({message: msg.toString()})
-            return
-          }
-        }
-      )
-    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
-  })
-}
-
-// Handler to get the timeline of a peer
-// Steps:
-// - Find Providers of peer's timeline
-// - Connect to first provider
-// - Retrieve timeline
-
-async function getTimeline(username) {
-  return new Promise(resolve => {
-    n.dialProtocol(peerID, ['/timeline']).then( async ({stream}) => {
-      await pipe(
-        stream,
-        async function(source) {
-          for await (const msg of source) {
-            resolve({message: msg.toString()})
-            return
-          }
-        }
-      )
-    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
-  })
-}
-
-// Handler to follow to a peer
-// Steps:
-// - Find Providers of peer's timeline
-// - Connect to first provider
-// - Retrieve timeline
-// - Store user's timeline
-// - Announce provide
-async function followUser(username) {
-  return new Promise(resolve => {
-    n.dialProtocol(peerID, ['/follow']).then( async ({stream}) => {
-      await pipe(
-        stream,
-        async function(source) {
-          for await (const msg of source) {
-            resolve({message: msg.toString()})
-            return
-          }
-        }
-      )
-    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
-  })
-}
-
-
+function getTimeline(user) {
+  node.contentRouting.get(new TextEncoder().encode(user)).then(
+    // If there is a timeline
+    msg => {
+      let msgString = new TextDecoder().decode(msg.val)
+      return JSON.parse(msgString)
+      
+    },
+    _ => {
+      return []
+    }
+  )
+  }
 
 // Frontend Communication
 
@@ -241,35 +193,106 @@ const timelines = [
   }
 ]
 
+function createCID(string) {
+  const bytes = json.encode(string)
+
+  const hash = await multihashing(bytes, 'sha2-256')
+  const cid = new CID(1, json.code, hash)
+  return cid
+}
+
 const feedHandler = (req, res) => {
+
   let posts = []
 
-  for (let t in timelines) {
-    posts = posts.concat(timelines[t].posts)
+  for (let user of node.app.following) {
+    posts= posts.concat(getTimeline(user))
   }
 
   res.json({ posts: posts });
 }
 
-const getUserHandler = (req, res) => {
-  let timeline = {};
 
-  for (let t in timelines) {
-    if (timelines[t].username == req.params.username) {
-      timeline = timelines[t]
-      break
+// Handler to get the timeline of a peer
+// Steps:
+// - Find Providers of peer's timeline
+// - Connect to first provider
+// - Retrieve timeline
+const getUserHandler = (req, res) => {
+
+  if(node.app.following.has(req.user)) {
+    node.contentRouting.get(new TextEncoder().encode(req.user)).then(
+      res.json({info: node.app, posts: getTimeline(node.app.user)})
+    )
+  } else {
+
+    for await (const provider of node.contentRouting.findProviders(createCID(req.user))) {
+      node.dialProtocol(provider.id, ['/user']).then( async ({stream}) => {
+        await pipe(
+          stream,
+          async function(source) {
+            for await (const msg of source) {
+              res.send(msg)
+              return
+            }
+          }
+        )
+      })
     }
   }
 
-  if (Object.keys(timeline).length === 0)
-    timeline['err'] = "User Not Found!"
-
-  res.json(timeline);
 }
 
+// Handler to publish a new post
+// Steps:
+// - Get timeline of own peer
+// - Create/Update timeline
+// - Put timeline in 
+const postHandler = (req, res) => {
+
+  const post = {
+    user: node.app.user,
+    text: req.body.text,
+    timestamp: d.getTime()
+  }
+
+  const putTimeline = (timeline) => {
+    node.contentRouting.put(new TextEncoder().encode(node.app.user),new TextEncoder().encode(JSON.stringify(timeline)),{minPeers: 5})
+    node.contentRouting.provide(createCID(node.app.user))
+  }
+
+  let timeline = getTimeline(node.app.user)
+  timeline.push(post)
+  putTimeline(timeline)
+  
+}
+
+// Handler to follow to a peer
+// Steps:
+// - Find Providers of peer's timeline
+// - Connect to first provider
+// - Retrieve timeline
+// - Store user's timeline
+// - Announce provide
+async function followUser(username) {
+  return new Promise(resolve => {
+    node.dialProtocol(peerID, ['/follow']).then( async ({stream}) => {
+      await pipe(
+        stream,
+        async function(source) {
+          for await (const msg of source) {
+            resolve({message: msg.toString()})
+            return
+          }
+        }
+      )
+    }, reason => resolve({message: "can't communicate with node", code: reason.code}))
+  })
+}
 
 const express = require("express");
 const cors = require('cors');
+const { json } = require('express')
 
 const PORT = process.env.PORT || 3001;
 
@@ -280,6 +303,7 @@ app.use(cors())
 // Routes
 
 app.get("/feed", feedHandler)
+app.post("/post", postHandler)
 
 //app.post("/feed", postHandler)
 
