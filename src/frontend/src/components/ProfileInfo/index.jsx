@@ -12,7 +12,7 @@ export default function ProfileInfo({ data }) {
     <ProfileContainer>
       <Stack spacing={2}>
         <Typography variant="h2">{data.username}</Typography>
-        <Stack direction="row" spacing={4}>
+        {/* <Stack direction="row" spacing={4}>
           <Stack direction="row" spacing={1}>
             <Typography>{data.followers.length}</Typography>
             <Typography variant="button">Followers</Typography>
@@ -21,7 +21,7 @@ export default function ProfileInfo({ data }) {
             <Typography>{data.following.length}</Typography>
             <Typography variant="button">Following</Typography>
           </Stack>
-        </Stack>
+        </Stack> */}
       </Stack>
     </ProfileContainer>
   );

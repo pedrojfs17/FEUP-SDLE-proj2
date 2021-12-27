@@ -37,7 +37,7 @@ export default function Profile() {
   return (
     <Container maxWidth="md">
       <ProfileInfo data={data}/>
-      {username === "pedrojfs17" && (
+      {data.profile && (
         <>
           <Divider/>
           <PublishForm/>

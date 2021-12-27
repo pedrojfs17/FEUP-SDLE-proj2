@@ -1,13 +1,19 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-import { NavBar } from "./components"
-import { Feed, Profile } from './pages'
+import { NavBar, useToken } from "./components"
+import { Feed, Login, Profile } from './pages'
 
 export default function App() {
+  const { token, setToken, clearToken } = useToken();
+
+  if(!token) {
+    return <Login setToken={setToken} />
+  }
+
   return (
     <Router>
-      <NavBar></NavBar>
+      <NavBar logout={clearToken}></NavBar>
       <Routes>
         <Route path="/" element={<Feed/>}/>
         <Route path="/profile/:username" element={<Profile/>}/>

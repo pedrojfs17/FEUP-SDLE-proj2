@@ -4,8 +4,10 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button'
 import Toolbar from '@mui/material/Toolbar';
+import IconButton from '@mui/material/IconButton';
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { Link, useNavigate } from 'react-router-dom'
 
 const Search = styled('div')(({ theme }) => ({
@@ -53,7 +55,7 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 
 const Offset = styled('div')(({ theme }) => theme.mixins.toolbar);
 
-export default function NavBar() {
+export default function NavBar({ logout }) {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState("");
 
@@ -73,7 +75,7 @@ export default function NavBar() {
             <Link to="/"><img src="/logo.png" alt="bug" height={48} /></Link>
           </Box>
           <Button size="large" sx={{ fontWeight: 'bold' }}><Link to="/">Feed</Link></Button>
-          <Button sx={{ margin: '0em 2em', fontWeight: 'bold' }}><Link to="/profile/pedrojfs17">Profile</Link></Button>
+          <Button size="large" sx={{ margin: '0em 2em', fontWeight: 'bold' }}><Link to="/profile/pedrojfs17">Profile</Link></Button>
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
@@ -85,6 +87,9 @@ export default function NavBar() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </Search>
+          <IconButton color="primary" onClick={logout} size="large" sx={{ margin: '0em 1em' }}>
+            <LogoutIcon/>
+          </IconButton>
         </Toolbar>
       </AppBar>
       <Offset sx={{padding: '1em'}} />
