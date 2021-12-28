@@ -17,7 +17,7 @@ export default function FeedStack({ data }) {
 
   return (
     <FeedContainer>
-      <Stack spacing={5}>
+      <Stack spacing={5} direction='column-reverse'>
         {data.posts.map((pub, idx) => (<FeedItem key={idx} data={pub}/>))}
       </Stack>
     </FeedContainer>

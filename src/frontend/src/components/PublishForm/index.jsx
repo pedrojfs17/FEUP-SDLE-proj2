@@ -3,6 +3,11 @@ import { styled, alpha } from '@mui/material/styles';
 import { Box, IconButton, InputBase, Typography, Stack } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteIcon from '@mui/icons-material/Delete';
+import axios from "axios";
+
+const { REACT_APP_BACKEND_PORT } = process.env;
+
+const baseURL = `http://localhost:${REACT_APP_BACKEND_PORT}/post`;
 
 const PublishContainer = styled('div')(({ theme }) => ({
   color: theme.palette.primary.main,
@@ -36,6 +41,13 @@ const PublishTools = styled('div')(({ theme }) => ({
 export default function PublishForm() {
   const [text, setText] = React.useState("");
 
+  const handlePost = async (e) => {
+    if(text.trim()!== "") 
+      axios.post(baseURL, {text: text.trim()}).then((response) => {
+        setText("");
+      });
+  }
+
   return (
     <PublishContainer>
       <Stack spacing={1}>
@@ -57,7 +69,7 @@ export default function PublishForm() {
             <IconButton size="large" color="primary" onClick={() => setText("")}>
               <DeleteIcon fontSize="inherit" />
             </IconButton>
-            <IconButton size="large" color="primary">
+            <IconButton size="large" color="primary" onClick={handlePost}>
               <SendIcon fontSize="inherit" />
             </IconButton>
           </PublishTools>

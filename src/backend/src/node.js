@@ -7,7 +7,7 @@ const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
 const pipe = require('it-pipe')
-
+const all = require('it-all')
 const { CID } = require('multiformats/cid')
 const { sha256 } = require('multiformats/hashes/sha2')
 const dagPB = require('@ipld/dag-pb')
@@ -29,15 +29,22 @@ module.exports.createCID = async function(string) {
 }
 
 module.exports.getTimeline = async function(node, username) {
-  let cid = await node.createCID(username)
+  let cid = await module.exports.createCID(username)
 
-  const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 1 }))
+  const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 5 }))
 
-  const { stream } = await node.dialProtocol(providers[0].id, ['/timeline'])
-  await writeStream(stream, req.params.username)
-  const timeline = await readStream(stream)
+  for (provider of providers) {
+    try {
+      const { stream } = await node.dialProtocol(provider.id, ['/timeline'])
+      await writeStream(stream, username)
+      const timeline = await readStream(stream)
 
-  return JSON.parse(timeline)
+      return JSON.parse(timeline)
+    } catch (error) {
+      continue
+    }
+  }
+  throw "User not found"
 }
 
 const readStream = async function(stream) {
@@ -147,75 +154,3 @@ module.exports.startNode = async function(username, password) {
 
   return node
 }
-
-
-
-// Frontend Communication
-
-// Temporary
-// const timelines = [
-//   {
-//     username: "pedrojfs17",
-//     // hash: sha256("username:" + username + ",password:" + password)
-//     followers: [],
-//     following: [],
-//     posts: [
-//       {
-//         username: "pedrojfs17",
-//         timestamp: "10m",
-//         text: "I am liking this project so much. I wish I could make distributed facebook as weel since we could put some photos of people."
-//       },
-//       {
-//         username: "pedrojfs17",
-//         timestamp: "42m",
-//         text: "Sometimes I think I am going crazy, but no, I am just tired of this bullshit. Please help...."
-//       },
-//     ]
-//   },
-//   {
-//     username: "antbz",
-//     // hash: sha256("username:" + username + ",password:" + password)
-//     followers: [],
-//     following: [],
-//     posts: [
-//       {
-//         username: "antbz",
-//         timestamp: "1h",
-//         text: "I would make some Grindr posting here, but this does not support phots.... Very sad mates.... I will come back another time to make your days!"
-//       }
-//     ]
-//   },
-//   {
-//     username: "g-batalhao-a",
-//     // hash: sha256("username:" + username + ",password:" + password)
-//     followers: [],
-//     following: [],
-//     posts: [
-//       {
-//         username: "g-batalhao-a",
-//         timestamp: "2h",
-//         text: "https://www.youtube.com/watch?v=T0A_cm6DIGM"
-//       }
-//     ]
-//   },
-//   {
-//     username: "my_name_is_cath",
-//     // hash: sha256("username:" + username + ",password:" + password)
-//     followers: [],
-//     following: [],
-//     posts: [
-//       {
-//         username: "my_name_is_cath",
-//         timestamp: "5h",
-//         text: "Souto is so baby. I like him so much that I wish he would go on a trip and never come back."
-//       }
-//     ]
-//   }
-// ]
-
-
-
-
-
-
-
