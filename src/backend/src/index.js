@@ -86,6 +86,7 @@ const followHandler = async (req, res) => {
     let post = JSON.parse(postStr)
 
     currentNode.app.timelines[username].push(post)
+    currentNode.app.timelines[username] = currentNode.app.timelines[username].filter(p => {return (new Date.getTime()- p.timestamp) < (1000*60)}) //less than 24h (1000*3600*24)  
   })
 
   currentNode.pubsub.subscribe(req.body.user)
