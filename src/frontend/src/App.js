@@ -16,6 +16,7 @@ export default function App() {
       <NavBar logout={clearToken}></NavBar>
       <Routes>
         <Route path="/" element={<Feed/>}/>
+        <Route path="/profile" element={<Profile profile={true}/>}/>
         <Route path="/profile/:username" element={<Profile/>}/>
       </Routes>
     </Router>

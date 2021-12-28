@@ -9,7 +9,7 @@ const FeedContainer = styled('div')(({ theme }) => ({
 }));
 
 export default function FeedStack({ data }) {
-  if (!data.posts) return (
+  if (!data.posts || data.posts.length === 0) return (
     <FeedContainer>
       No Posts!
     </FeedContainer>

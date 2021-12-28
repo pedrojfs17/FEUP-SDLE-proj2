@@ -6,36 +6,57 @@ const MulticastDNS = require('libp2p-mdns')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
-const multihashing = require('multihashing-async')
-const CID = require('cids')
+const pipe = require('it-pipe')
+
+const { CID } = require('multiformats/cid')
+const { sha256 } = require('multiformats/hashes/sha2')
+const dagPB = require('@ipld/dag-pb')
+const delay = require('delay')
+
 
 module.exports.printAddrs = function(node) {
   console.log('Node %s is listening on:', node.peerId.toB58String())
   node.multiaddrs.forEach((ma) => console.log(`${ma.toString()}/p2p/${node.peerId.toB58String()}`))
 }
 
-module.exports.createCID = async function (string) {
-  const bytes = new TextEncoder('utf8').encode(string)
-  const hash = await multihashing(bytes, 'sha2-256')
-  return new CID(1, 'dag-pb', hash)
+module.exports.createCID = async function(string) {
+  const bytes = dagPB.encode({
+    Data: new TextEncoder().encode(string),
+    Links: []
+  })
+  const hash = await sha256.digest(bytes)
+  return CID.create(1, dagPB.code, hash)
 }
 
-module.exports.updateTimeline = function(node, timeline) {
-  node.contentRouting.put(new TextEncoder().encode(node.app.user),new TextEncoder().encode(JSON.stringify(timeline)),{minPeers: 5})
-  node.contentRouting.provide(module.exports.createCID(node.app.user))
+module.exports.getTimeline = async function(node, username) {
+  let cid = await node.createCID(username)
+
+  const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 1 }))
+
+  const { stream } = await node.dialProtocol(providers[0].id, ['/timeline'])
+  await writeStream(stream, req.params.username)
+  const timeline = await readStream(stream)
+
+  return JSON.parse(timeline)
 }
 
-module.exports.getTimeline = async function (node, user) {
-  return node.contentRouting.get(new TextEncoder().encode(user)).then(
-    // If there is a timeline
-    msg => {
-      let msgString = new TextDecoder().decode(msg.val)
-      return JSON.parse(msgString)
-      
-    },
-    _ => {
-      return []
+const readStream = async function(stream) {
+  let res = null
+  await pipe(
+    stream,
+    async function(source) {
+      for await (const msg of source) {
+        res = msg.toString()
+      }
     }
+  )
+  return res
+}
+
+const writeStream = function(stream, message) {
+  pipe(
+    [message],
+    stream
   )
 }
 
@@ -80,7 +101,7 @@ module.exports.startNode = async function(username, password) {
       dht: {
         kBucketSize: 20,
         enabled: true,
-        clientMode: false
+        clientMode: true
       }
     }
   })
@@ -89,8 +110,11 @@ module.exports.startNode = async function(username, password) {
     console.log('Discovered %s', peer.toB58String())
   })
 
-  node.connectionManager.on('peer:connect', (connection) => {
+  node.connectionManager.on('peer:connect', async (connection) => {
     console.log('Connected to %s', connection.remotePeer.toB58String())
+    await delay(1000)
+    // Provide following users
+    node.contentRouting.provide(await module.exports.createCID(node.app.user))
   })
 
   node.app = {
@@ -98,15 +122,15 @@ module.exports.startNode = async function(username, password) {
     user: username,
     peerId: node.peerId.toB58String(),
     followers: new Set([]),
-    following: new Set([node.peerId.toB58String()]),
-    timeline: []
+    following: new Set([]),
+    timelines: {}
   }
 
-  node.handle("/timeline", (stream) => {
-    pipe(
-      JSON.stringify(module.exports.getTimeline(node.app.user)),
-      stream
-    )
+  node.app.timelines[username] = []
+
+  node.handle("/timeline", async ({ stream }) => {
+    let timeline = await readStream(stream)
+    writeStream(stream, JSON.stringify(node.app.timelines[timeline]))
   })
 
   await node.start()
@@ -129,65 +153,65 @@ module.exports.startNode = async function(username, password) {
 // Frontend Communication
 
 // Temporary
-const timelines = [
-  {
-    username: "pedrojfs17",
-    // hash: sha256("username:" + username + ",password:" + password)
-    followers: [],
-    following: [],
-    posts: [
-      {
-        username: "pedrojfs17",
-        timestamp: "10m",
-        text: "I am liking this project so much. I wish I could make distributed facebook as weel since we could put some photos of people."
-      },
-      {
-        username: "pedrojfs17",
-        timestamp: "42m",
-        text: "Sometimes I think I am going crazy, but no, I am just tired of this bullshit. Please help...."
-      },
-    ]
-  },
-  {
-    username: "antbz",
-    // hash: sha256("username:" + username + ",password:" + password)
-    followers: [],
-    following: [],
-    posts: [
-      {
-        username: "antbz",
-        timestamp: "1h",
-        text: "I would make some Grindr posting here, but this does not support phots.... Very sad mates.... I will come back another time to make your days!"
-      }
-    ]
-  },
-  {
-    username: "g-batalhao-a",
-    // hash: sha256("username:" + username + ",password:" + password)
-    followers: [],
-    following: [],
-    posts: [
-      {
-        username: "g-batalhao-a",
-        timestamp: "2h",
-        text: "https://www.youtube.com/watch?v=T0A_cm6DIGM"
-      }
-    ]
-  },
-  {
-    username: "my_name_is_cath",
-    // hash: sha256("username:" + username + ",password:" + password)
-    followers: [],
-    following: [],
-    posts: [
-      {
-        username: "my_name_is_cath",
-        timestamp: "5h",
-        text: "Souto is so baby. I like him so much that I wish he would go on a trip and never come back."
-      }
-    ]
-  }
-]
+// const timelines = [
+//   {
+//     username: "pedrojfs17",
+//     // hash: sha256("username:" + username + ",password:" + password)
+//     followers: [],
+//     following: [],
+//     posts: [
+//       {
+//         username: "pedrojfs17",
+//         timestamp: "10m",
+//         text: "I am liking this project so much. I wish I could make distributed facebook as weel since we could put some photos of people."
+//       },
+//       {
+//         username: "pedrojfs17",
+//         timestamp: "42m",
+//         text: "Sometimes I think I am going crazy, but no, I am just tired of this bullshit. Please help...."
+//       },
+//     ]
+//   },
+//   {
+//     username: "antbz",
+//     // hash: sha256("username:" + username + ",password:" + password)
+//     followers: [],
+//     following: [],
+//     posts: [
+//       {
+//         username: "antbz",
+//         timestamp: "1h",
+//         text: "I would make some Grindr posting here, but this does not support phots.... Very sad mates.... I will come back another time to make your days!"
+//       }
+//     ]
+//   },
+//   {
+//     username: "g-batalhao-a",
+//     // hash: sha256("username:" + username + ",password:" + password)
+//     followers: [],
+//     following: [],
+//     posts: [
+//       {
+//         username: "g-batalhao-a",
+//         timestamp: "2h",
+//         text: "https://www.youtube.com/watch?v=T0A_cm6DIGM"
+//       }
+//     ]
+//   },
+//   {
+//     username: "my_name_is_cath",
+//     // hash: sha256("username:" + username + ",password:" + password)
+//     followers: [],
+//     following: [],
+//     posts: [
+//       {
+//         username: "my_name_is_cath",
+//         timestamp: "5h",
+//         text: "Souto is so baby. I like him so much that I wish he would go on a trip and never come back."
+//       }
+//     ]
+//   }
+// ]
 
 
 

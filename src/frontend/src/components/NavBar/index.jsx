@@ -55,6 +55,12 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 
 const Offset = styled('div')(({ theme }) => theme.mixins.toolbar);
 
+const { REACT_APP_BACKEND_PORT } = process.env;
+
+function logoutUser() {
+  return fetch(`http://localhost:${REACT_APP_BACKEND_PORT}/logout`)
+}
+
 export default function NavBar({ logout }) {
   const navigate = useNavigate();
   const [search, setSearch] = React.useState("");
@@ -67,6 +73,11 @@ export default function NavBar({ logout }) {
     }
   }
 
+  const handleLogout = () => {
+    logoutUser()
+    logout()
+  }
+
   return (
     <Box>
       <AppBar position="fixed" color="secondary" sx={{padding: { xs: '1em 1em', lg: '1em 10em' }}}>
@@ -75,7 +86,7 @@ export default function NavBar({ logout }) {
             <Link to="/"><img src="/logo.png" alt="bug" height={48} /></Link>
           </Box>
           <Button size="large" sx={{ fontWeight: 'bold' }}><Link to="/">Feed</Link></Button>
-          <Button size="large" sx={{ margin: '0em 2em', fontWeight: 'bold' }}><Link to="/profile/pedrojfs17">Profile</Link></Button>
+          <Button size="large" sx={{ margin: '0em 2em', fontWeight: 'bold' }}><Link to="/profile">Profile</Link></Button>
           <Search>
             <SearchIconWrapper>
               <SearchIcon />
@@ -87,7 +98,7 @@ export default function NavBar({ logout }) {
               onChange={(e) => setSearch(e.target.value)}
             />
           </Search>
-          <IconButton color="primary" onClick={logout} size="large" sx={{ margin: '0em 1em' }}>
+          <IconButton color="primary" onClick={handleLogout} size="large" sx={{ margin: '0em 1em' }}>
             <LogoutIcon/>
           </IconButton>
         </Toolbar>

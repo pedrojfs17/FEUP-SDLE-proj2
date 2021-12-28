@@ -8,15 +8,16 @@ const { REACT_APP_BACKEND_PORT } = process.env;
 
 const baseURL = `http://localhost:${REACT_APP_BACKEND_PORT}/user/`;
 
-export default function Profile() {
+export default function Profile({ profile }) {
   const { username } = useParams();
   const [data, setData] = React.useState(null);
 
   React.useEffect(() => {
-    axios.get(baseURL + username).then((response) => {
+    const user = profile ? "" : username
+    axios.get(baseURL + user).then((response) => {
       setData(response.data);
     });
-  }, [username]);
+  }, [profile, username]);
 
   if (!data) return (
     <Container maxWidth="md">
