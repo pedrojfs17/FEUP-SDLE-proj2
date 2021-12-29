@@ -1,6 +1,7 @@
 import React from 'react'
 import { styled, alpha } from '@mui/material/styles';
-import { Alert, Button, InputBase, Stack, Typography } from '@mui/material';
+import { Alert, InputBase, Stack, Typography } from '@mui/material';
+import { LoadingButton } from '@mui/lab'
 import PropTypes from 'prop-types';
 
 const { REACT_APP_BACKEND_PORT } = process.env;
@@ -26,6 +27,15 @@ const PublishInputBase = styled(InputBase)(({ theme }) => ({
   color: 'inherit'
 }));
 
+const CustomLoadingButton = styled(LoadingButton)(({ theme }) => ({
+  '&:disabled': {
+    backgroundColor: alpha(theme.palette.primary.main, 0.25),
+  },
+  '&:disabled *': {
+    color: alpha(theme.palette.primary.main, 1),
+  },
+}));
+
 async function loginUser(credentials) {
   return fetch(`http://localhost:${REACT_APP_BACKEND_PORT}/login`, {
     method: 'POST',
@@ -39,16 +49,24 @@ async function loginUser(credentials) {
 
 export default function LoginForm({ setToken }) {
   const [error, setError] = React.useState(null);
+  const [loading, setLoading] = React.useState(false);
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
 
   const handleLogin = async (e) => {
+    setLoading(true)
     const res = await loginUser({
       username,
       password
     });
 
-    res.err ? setError(res.err) : setToken(res.token);
+    if (res.err) {
+      setError(res.err)
+      setLoading(false)
+    } else {
+      setToken(res.token);
+    }
+    
   }
 
   return (
@@ -77,7 +95,7 @@ export default function LoginForm({ setToken }) {
           </PublishField>
         </Stack>
       </Stack>
-      <Button onClick={handleLogin} variant="contained" size="large" sx={{ margin: '2em 0em', float: 'right' }}>Login</Button>
+      <CustomLoadingButton onClick={handleLogin} loading={loading} variant="contained" size="large" sx={{ margin: '2em 0em', float: 'right' }}>Login</CustomLoadingButton>
     </LoginContainer>
   );
 }

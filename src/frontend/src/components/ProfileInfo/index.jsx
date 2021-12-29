@@ -2,6 +2,7 @@ import React from 'react'
 import { styled } from '@mui/material/styles';
 import { Button, Stack, Typography } from '@mui/material';
 import axios from "axios";
+import { FollowerBox } from '..';
 
 const { REACT_APP_BACKEND_PORT } = process.env;
 
@@ -14,22 +15,23 @@ const ProfileContainer = styled('div')(({ theme }) => ({
 
 export default function ProfileInfo({ data }) {
 
-  const [following, setFolowing] = React.useState(data.following);
+  const [following, setFolowing] = React.useState(data.isFollowing);
 
   const handleFollow = async (e) => {
     if (following) {
       axios.post(baseURL+"/unfollow", {username: data.username}).then((response) => {
-        setFolowing(response.data.following);
+        setFolowing(response.data.isFollowing);
       });
 
     } else {
       axios.post(baseURL+"/follow", {username: data.username}).then((response) => {
-        setFolowing(response.data.following);
+        setFolowing(response.data.isFollowing);
       });
     }
   }
   return (
     <ProfileContainer>
+      <Stack spacing={2}>
       <Stack spacing={2} direction='row' justifyContent='space-between'>
         <Typography variant="h2">{data.username}</Typography>
         {!data.profile &&
@@ -37,18 +39,17 @@ export default function ProfileInfo({ data }) {
             <Button onClick={handleFollow} variant="contained" size="medium">{following ? "Unfollow" : "Follow"}</Button>
           </Stack>
         }
-        {/* <Stack direction="row" spacing={4}>
-          <Stack direction="row" spacing={1}>
-            <Typography>{data.followers.length}</Typography>
-            <Typography variant="button">Followers</Typography>
-          </Stack>
-          <Stack direction="row" spacing={1}>
-            <Typography>{data.following.length}</Typography>
-            <Typography variant="button">Following</Typography>
-          </Stack>
-        </Stack> */}
+        
       </Stack>
-      
+      <Stack direction="row" spacing={4}>
+          <Stack direction="row" spacing={1}>
+            <FollowerBox list={data.followers} title="Followers"/>
+          </Stack>
+          <Stack direction="row" spacing={1}>
+            <FollowerBox list={data.following} title="Following"/>
+          </Stack>
+        </Stack>
+      </Stack>
     </ProfileContainer>
   );
 }

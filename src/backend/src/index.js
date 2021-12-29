@@ -25,7 +25,11 @@ const loginHandler = async (req, res) => {
       || (req.body.username === "my_name_is_cath" && req.body.password === "1234")) {
     await node.startNode(req.body.username).then(result => { currentNode = result })
     console.log(currentNode.app)
-    res.send({ token: currentNode.app.token.toString() });
+    res.send({ token: currentNode.app.token.toString() })
+    // Get following profiles
+    currentNode.app.profiles[currentNode.app.user].following.forEach(f => {
+      node.followRoutine(currentNode,f)
+    })
   }
   else
     res.send({ err: 'Invalid Credentials!'})
@@ -37,15 +41,16 @@ const logoutHandler = () => {
 }
 
 const feedHandler = async (req, res) => {
-  let posts = [...currentNode.app.timelines[currentNode.app.user]]
+  if(!currentNode) return
+  let posts = [...currentNode.app.profiles[currentNode.app.user].timeline]
 
-  for (let user of currentNode.app.following) {
-    posts = posts.concat(await node.getTimeline(currentNode, user))
+  for (let user of currentNode.app.profiles[currentNode.app.user].following) {
+    posts = posts.concat((await node.getProfile(currentNode, user)).timeline)
   }
 
   posts.sort((a,b) => {return a.timestamp - b.timestamp})
 
-  res.json({ posts: posts });
+  res.json({ timeline: posts });
 }
 
 const postHandler = (req, res) => {
@@ -59,8 +64,8 @@ const postHandler = (req, res) => {
     timestamp: new Date().getTime()
   }
 
-  currentNode.app.timelines[currentNode.app.user].push(post)
-  currentNode.pubsub.publish(post.username,new TextEncoder().encode(JSON.stringify(post)))
+  currentNode.app.profiles[currentNode.app.user].timeline.push(post)
+  currentNode.pubsub.publish(post.username,new TextEncoder().encode("<POST> " + JSON.stringify(post)))
 
   res.json("OK")
   
@@ -68,37 +73,13 @@ const postHandler = (req, res) => {
 
 const followHandler = async (req, res) => {
   // get username
-  // add username to following
-  // Subscribe username
-  // dial protocol to get timeline
-  // save timeline to local
-  // announce provide
-  // evertyiem receive message, uypdate local timeline
-
   const username = req.body.username
 
-  currentNode.app.following.add(username)
+  node.followRoutine(currentNode,username)
 
-  currentNode.pubsub.on(username, (msg) => {
-    //Add post to timeline
-    //Provide
-    let postStr = new TextDecoder().decode(msg.data)
-    let post = JSON.parse(postStr)
-
-    currentNode.app.timelines[username].push(post)
-    currentNode.app.timelines[username] = currentNode.app.timelines[username].filter(p => {return (new Date.getTime()- p.timestamp) < (1000*60)}) //less than 24h (1000*3600*24)  
-  })
-
-  currentNode.pubsub.subscribe(req.body.user)
-
-  let timeline = await node.getTimeline(currentNode,username)
-
-  currentNode.app.timelines[username] = timeline
-
-  currentNode.contentRouting.provide(await node.createCID(username))
-
-  
-  res.json({following: true})
+  currentNode.pubsub.publish(username,"<FOLLOW> " + currentNode.app.user)
+  currentNode.pubsub.publish(currentNode.app.user,"<FOLLOWED> " + username)
+  res.json({isFollowing: true})
 }
 
 const unfollowHandler = (req, res) => {
@@ -111,37 +92,44 @@ const unfollowHandler = (req, res) => {
 
   const username = req.body.username
 
-  currentNode.app.following.delete(username)
+  delete currentNode.app.profiles[username]
 
-  currentNode.pubsub.unsubribe(username)
+  currentNode.app.profiles[currentNode.app.user].following.delete(username)
+
+  currentNode.pubsub.publish(username,"<UNFOLLOW> " + currentNode.app.user)
+  currentNode.pubsub.publish(currentNode.app.user,"<UNFOLLOWED> " + username)
+
+  currentNode.pubsub.unsubscribe(username)
 
   //currentNode.app.timelines.delete(username)
 
-  
-  res.json({following: false})
+  res.json({isFollowing: false})
 }
 
 const userHandler = async (req, res) => {
+  if(!currentNode) return
   if (!req.params.username || req.params.username === currentNode.app.user) {
     res.json({ 
+      ...node.profiletoJSON(currentNode.app.profiles[currentNode.app.user]),
       username: currentNode.app.user,
-      posts: currentNode.app.timelines[currentNode.app.user],
       profile: true // To know if the user its in its own profile
     })
   } 
-  else if(currentNode.app.following.has(req.params.username)) {
+  else if(currentNode.app.profiles[currentNode.app.user].following.has(req.params.username)) {
     res.json({ 
+      ...node.profiletoJSON(currentNode.app.profiles[req.params.username]),
       username: req.params.username,
-      posts: currentNode.app.timelines[req.params.username],
+      isFollowing: true,
       profile: false
     })
   } 
   else {
     try {
-      let timeline = await node.getTimeline(currentNode, req.params.username)
-      res.json({ 
+      let profile = await node.getProfile(currentNode, req.params.username)
+      res.json({
+        ...node.profiletoJSON(profile),
         username: req.params.username,
-        posts: timeline,
+        isFollowing: false,
         profile: false
       })
     }

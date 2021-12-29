@@ -9,7 +9,7 @@ const FeedContainer = styled('div')(({ theme }) => ({
 }));
 
 export default function FeedStack({ data }) {
-  if (!data.posts || data.posts.length === 0) return (
+  if (!data.timeline || data.timeline.length === 0) return (
     <FeedContainer>
       No Posts!
     </FeedContainer>
@@ -18,7 +18,7 @@ export default function FeedStack({ data }) {
   return (
     <FeedContainer>
       <Stack spacing={5} direction='column-reverse'>
-        {data.posts.map((pub, idx) => (<FeedItem key={idx} data={pub}/>))}
+        {data.timeline.map((pub, idx) => (<FeedItem key={idx} data={pub}/>))}
       </Stack>
     </FeedContainer>
   );

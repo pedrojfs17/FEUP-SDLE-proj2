@@ -28,23 +28,104 @@ module.exports.createCID = async function(string) {
   return CID.create(1, dagPB.code, hash)
 }
 
-module.exports.getTimeline = async function(node, username) {
+module.exports.followRoutine = async function(node,username) {
+  // add username to following
+  // Subscribe username
+  // dial protocol to get timeline
+  // save timeline to local
+  // announce provide
+  // evertyiem receive message, uypdate local timeline
+  node.app.profiles[node.app.user].following.add(username)
+
+  node.pubsub.on(username, (msg) => module.exports.handleMessage(node, username,msg))
+
+  let profile = await module.exports.getProfile(node,username)
+
+  node.app.profiles[username] = profile
+  node.app.profiles[username].followers.add(node.app.user)
+
+  node.pubsub.subscribe(username)
+  node.contentRouting.provide(await module.exports.createCID(username))
+}
+
+module.exports.handleMessage = function(node, username, msg) {
+  //Add post to timeline
+  //Provide
+  
+  let postStr = new TextDecoder().decode(msg.data)
+
+  const type = postStr.substring(0,postStr.indexOf(' '))
+  const content = postStr.substring(postStr.indexOf(' ')+1)
+
+  switch (type) {
+    case "<POST>":
+      let post = JSON.parse(content)
+      node.app.profiles[username].timeline.push(post)
+      node.app.profiles[username].timeline = node.app.profiles[username].timeline.filter(p => {return (new Date().getTime() - p.timestamp) < (1000*60)}) //less than 24h (1000*3600*24)  
+      break;
+
+    case "<FOLLOW>":
+      if(node.app.profiles[content])
+        node.app.profiles[content].following.add(username)
+      node.app.profiles[username].followers.add(content)
+
+      console.log(content+ " followed "+ username)
+      break;
+  
+    case "<FOLLOWED>":
+      if(node.app.profiles[content])
+        node.app.profiles[content].followers.add(username)
+      node.app.profiles[username].following.add(content)
+
+      console.log(username+ " followed "+ content)
+      break;
+
+    case "<UNFOLLOW>":
+      if(node.app.profiles[content])
+        node.app.profiles[content].following.delete(username)
+      node.app.profiles[username].followers.delete(content)
+      console.log(content+ " unfollowed "+ username)
+      break;
+
+    case "<UNFOLLOWED>":
+      if(node.app.profiles[content])
+        node.app.profiles[content].followers.delete(username)
+      node.app.profiles[username].following.delete(content)
+      console.log(username+ " unfollowed "+ content)
+      break;
+    
+    default:
+      break;
+  }
+}
+
+module.exports.getProfile = async function(node, username) {
   let cid = await module.exports.createCID(username)
 
   const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 5 }))
 
   for (provider of providers) {
     try {
-      const { stream } = await node.dialProtocol(provider.id, ['/timeline'])
+      const { stream } = await node.dialProtocol(provider.id, ['/profile'])
       await writeStream(stream, username)
-      const timeline = await readStream(stream)
-
-      return JSON.parse(timeline)
+      const profile = await readStream(stream)
+      let user = JSON.parse(profile)
+      user.followers = new Set(user.followers)
+      user.following = new Set(user.following)
+      return user
     } catch (error) {
       continue
     }
   }
   throw "User not found"
+}
+
+module.exports.profiletoJSON = function(profile) {
+  return {
+    timeline: profile.timeline,
+    followers: [...profile.followers],
+    following: [...profile.following]
+  }
 }
 
 const readStream = async function(stream) {
@@ -128,16 +209,18 @@ module.exports.startNode = async function(username, password) {
     token: await module.exports.createCID("username:" + username + ";password:" + password),
     user: username,
     peerId: node.peerId.toB58String(),
-    followers: new Set([]),
-    following: new Set([]),
-    timelines: {}
+    profiles: {}
   }
 
-  node.app.timelines[username] = []
+  node.app.profiles[username] = {
+    followers: new Set([]),
+    following : new Set([]),
+    timeline: []
+  }
 
-  node.handle("/timeline", async ({ stream }) => {
-    let timeline = await readStream(stream)
-    writeStream(stream, JSON.stringify(node.app.timelines[timeline]))
+  node.handle("/profile", async ({ stream }) => {
+    let profile = await readStream(stream)
+    writeStream(stream, JSON.stringify(module.exports.profiletoJSON(node.app.profiles[profile])))
   })
 
   await node.start()
@@ -151,6 +234,17 @@ module.exports.startNode = async function(username, password) {
 
   console.log('Node has started:', node.isStarted())
   module.exports.printAddrs(node)
+
+  node.pubsub.on(node.app.user, (msg) => module.exports.handleMessage(node, node.app.user,msg))
+  node.pubsub.subscribe(node.app.user)
+  await delay(2000)
+  try {
+    let profile = await module.exports.getProfile(node,node.app.user)
+    node.app.profiles[node.app.user] = profile
+    
+  } catch (err) {
+    console.log("No previous record found")
+  }
 
   return node
 }
