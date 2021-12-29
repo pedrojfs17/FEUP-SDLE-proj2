@@ -38,13 +38,14 @@ const PublishTools = styled('div')(({ theme }) => ({
   padding: '0.5em'
 }));
 
-export default function PublishForm() {
+export default function PublishForm({ publishHandler }) {
   const [text, setText] = React.useState("");
 
   const handlePost = async (e) => {
     if(text.trim()!== "") 
       axios.post(baseURL, {text: text.trim()}).then((response) => {
         setText("");
+        publishHandler(response.data)
       });
   }
 

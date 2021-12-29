@@ -3,7 +3,7 @@ const bp = require('body-parser')
 const cors = require('cors');
 const node = require("./node");
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 let currentNode = null
 
@@ -24,11 +24,14 @@ const loginHandler = async (req, res) => {
       || (req.body.username === "g-batalhao-a" && req.body.password === "1234")
       || (req.body.username === "my_name_is_cath" && req.body.password === "1234")) {
     await node.startNode(req.body.username).then(result => { currentNode = result })
-    console.log(currentNode.app)
+
+    currentNode.pubsub.on(currentNode.app.user, (msg) => node.handleMessage(node, node.app.user, msg))
+    currentNode.pubsub.subscribe(currentNode.app.user)
+  
     res.send({ token: currentNode.app.token.toString() })
     // Get following profiles
     currentNode.app.profiles[currentNode.app.user].following.forEach(f => {
-      node.followRoutine(currentNode,f)
+      node.followRoutine(currentNode, f)
     })
   }
   else
@@ -67,18 +70,18 @@ const postHandler = (req, res) => {
   currentNode.app.profiles[currentNode.app.user].timeline.push(post)
   currentNode.pubsub.publish(post.username,new TextEncoder().encode("<POST> " + JSON.stringify(post)))
 
-  res.json("OK")
-  
+  res.json(post)
 }
 
 const followHandler = async (req, res) => {
   // get username
   const username = req.body.username
 
-  node.followRoutine(currentNode,username)
+  node.followRoutine(currentNode, username)
 
   currentNode.pubsub.publish(username,"<FOLLOW> " + currentNode.app.user)
   currentNode.pubsub.publish(currentNode.app.user,"<FOLLOWED> " + username)
+
   res.json({isFollowing: true})
 }
 

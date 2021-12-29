@@ -12,6 +12,14 @@ export default function Profile({ profile }) {
   const { username } = useParams();
   const [data, setData] = React.useState(null);
 
+  const publishHandler = (newPost) => {
+    setData(prev => { 
+      return prev.timeline
+        ? { ...prev, timeline: [...prev.timeline, newPost]}
+        : { ...prev, timeline: [newPost]}
+    })
+  }
+
   React.useEffect(() => {
     const user = profile ? "" : username
     axios.get(baseURL + user).then((response) => {
@@ -41,7 +49,7 @@ export default function Profile({ profile }) {
       {data.profile && (
         <>
           <Divider/>
-          <PublishForm/>
+          <PublishForm publishHandler={publishHandler}/>
         </>
       )}
       <Divider/>

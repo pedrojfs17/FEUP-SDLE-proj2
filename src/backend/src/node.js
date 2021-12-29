@@ -28,7 +28,7 @@ module.exports.createCID = async function(string) {
   return CID.create(1, dagPB.code, hash)
 }
 
-module.exports.followRoutine = async function(node,username) {
+module.exports.followRoutine = async function(node, username) {
   // add username to following
   // Subscribe username
   // dial protocol to get timeline
@@ -37,7 +37,7 @@ module.exports.followRoutine = async function(node,username) {
   // evertyiem receive message, uypdate local timeline
   node.app.profiles[node.app.user].following.add(username)
 
-  node.pubsub.on(username, (msg) => module.exports.handleMessage(node, username,msg))
+  node.pubsub.on(username, (msg) => module.exports.handleMessage(node, username, msg))
 
   let profile = await module.exports.getProfile(node,username)
 
@@ -104,7 +104,7 @@ module.exports.getProfile = async function(node, username) {
 
   const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 5 }))
 
-  for (provider of providers) {
+  for (let provider of providers) {
     try {
       const { stream } = await node.dialProtocol(provider.id, ['/profile'])
       await writeStream(stream, username)
@@ -235,8 +235,6 @@ module.exports.startNode = async function(username, password) {
   console.log('Node has started:', node.isStarted())
   module.exports.printAddrs(node)
 
-  node.pubsub.on(node.app.user, (msg) => module.exports.handleMessage(node, node.app.user,msg))
-  node.pubsub.subscribe(node.app.user)
   await delay(2000)
   try {
     let profile = await module.exports.getProfile(node,node.app.user)

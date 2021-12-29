@@ -5,16 +5,25 @@ import { Divider, FeedStack, PublishForm } from '../../components';
 
 const { REACT_APP_BACKEND_PORT } = process.env;
 
-const baseURL = `http://localhost:${REACT_APP_BACKEND_PORT}/feed`;
+const baseURL = `http://localhost:${REACT_APP_BACKEND_PORT}`;
 
 export default function Feed() {
-  const [data, setData] = React.useState(null);
+  const [data, setData] = React.useState({});
 
+  const publishHandler = (newPost) => {
+    setData(prev => { 
+      return prev.timeline
+        ? { ...prev, timeline: [...prev.timeline, newPost]}
+        : { ...prev, timeline: [newPost]}
+    })
+  }
+  
   React.useEffect(() => {
-    axios.get(baseURL).then((response) => {
+    axios.get(baseURL + "/feed").then((response) => {
       setData(response.data);
     });
   }, []);
+
   if (!data) return (
     <Container maxWidth="md">
       <Box sx={{ margin: '5em', display: 'flex',justifyContent: 'center' }}>
@@ -31,7 +40,7 @@ export default function Feed() {
 
   return (
     <Container maxWidth="md">
-      <PublishForm/>
+      <PublishForm publishHandler={publishHandler}/>
       <Divider/>
       <FeedStack data={data}/>
     </Container>
