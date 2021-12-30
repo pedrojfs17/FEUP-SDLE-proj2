@@ -2,7 +2,7 @@ const Libp2p = require('libp2p')
 const TCP = require('libp2p-tcp')
 const MPLEX = require('libp2p-mplex')
 const { NOISE } = require('libp2p-noise')
-const MulticastDNS = require('libp2p-mdns')
+const Bootstrap = require('libp2p-bootstrap')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
@@ -162,7 +162,7 @@ module.exports.startNode = async function(username, password) {
       ],
       streamMuxer: [MPLEX],
       connEncryption: [NOISE],
-      peerDiscovery: [MulticastDNS],
+      peerDiscovery: [Bootstrap],
       dht: DHT,
       pubsub: GossipSub,
     },
@@ -177,7 +177,12 @@ module.exports.startNode = async function(username, password) {
     config: {
       peerDiscovery: {
         autoDial: true,
-        [MulticastDNS.tag]: {
+        [Bootstrap.tag]: {
+          list: [ // a list of bootstrap peer multiaddrs to connect to on node startup
+            "/ip4/127.0.0.1/tcp/6001/p2p/QmVVP9rWw5yLCbZVQzoDSUZrz7VcS14TQ3GL2X5yXqqcPb",
+            "/ip4/127.0.0.1/tcp/7001/p2p/QmcMhtRvVXPtLzRuGUjrrUGeALfCPPPxG3uxXWdBX7qd8q",
+            "/ip4/127.0.0.1/tcp/8001/p2p/QmTv6dFFFhtUB37tJDuFghRkvGfP9CDfYC77sBVnAHmrU2",
+            ],
           interval: 1000,
           enabled: true
         },

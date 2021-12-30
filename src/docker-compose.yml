@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  bootstrap:
+    build:
+      dockerfile: Dockerfile
+      context: ./bootstrap
+    environment:
+      - PORT=${REACT_APP_FRONTEND_PORT}
+      - KEY_FILE=${REACT_APP_BACKEND_PORT}
+    ports:
+      - ${REACT_APP_FRONTEND_PORT}:${REACT_APP_FRONTEND_PORT}
+    volumes:
+      - /app/node_modules
+      - ./bootstrap:/app
+      
   backend:
     build:
       dockerfile: Dockerfile
