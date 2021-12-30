@@ -25,7 +25,7 @@ const loginHandler = async (req, res) => {
       || (req.body.username === "my_name_is_cath" && req.body.password === "1234")) {
     await node.startNode(req.body.username).then(result => { currentNode = result })
 
-    currentNode.pubsub.on(currentNode.app.user, (msg) => node.handleMessage(node, node.app.user, msg))
+    currentNode.pubsub.on(currentNode.app.user, (msg) => node.handleMessage(currentNode, currentNode.app.user, msg))
     currentNode.pubsub.subscribe(currentNode.app.user)
   
     res.send({ token: currentNode.app.token.toString() })
