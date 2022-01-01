@@ -286,6 +286,7 @@ module.exports.startAuthenticatedNode = async function(node, username) {
 
   try {
     let profile = await module.exports.getProfile(node, node.app.user)
+    // Save in local storage - call function storeData
     node.app.profiles[node.app.user] = profile
   } catch (err) {
     console.log("No previous record found")
