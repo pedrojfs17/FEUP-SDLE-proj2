@@ -105,7 +105,6 @@ module.exports.handleMessage = function(node, username, msg) {
   }
 
   // Log if it something related to current node's user
-  console.log("Logging: "+postStr)
   if (valid && node.app.user === username) module.exports.logData(node, postStr)
 }
 
@@ -137,7 +136,6 @@ module.exports.isStillFollowing = async function(node, username) {
   let cid = await module.exports.createCID(username)
 
   const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 1 }))
-
   for (let provider of providers) {
     try {
       const { stream } = await node.dialProtocol(provider.id, ['/heartbeat'])
@@ -174,8 +172,7 @@ module.exports.logData = function(node, msg) {
       // store data in json and clean log file if length > 128
       let data = fs.readFileSync(username+".txt","utf8")
       const nLines = data.toString().split("\n").length
-      console.log(nLines)
-      if ((nLines-1) > 5)
+      if ((nLines-1) > 128)
         storeData(node)
       
   });
@@ -366,7 +363,7 @@ module.exports.startAuthenticatedNode = async function(node, username) {
     node.app.profiles[node.app.user] = profile
     storeData(node)
   } catch (err) {
-    console.log("No previous record found")
+    console.log("No previous public record found")
     // Check if username.json exists
     // Load json to node.app
     try {

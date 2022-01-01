@@ -47,7 +47,7 @@ const registerHandler = async (req, res) => {
 
   currentNode.contentRouting.put(new TextEncoder().encode('/' + username), new TextEncoder().encode(hashedPassword))
 
-  node.startAuthenticatedNode(currentNode, username)
+  await node.startAuthenticatedNode(currentNode, username)
 
   res.send({ token: username })
 }
@@ -74,7 +74,7 @@ const loginHandler = async (req, res) => {
   }
 
   if (await node.comparePassword(password, hashedPassword)) {
-    node.startAuthenticatedNode(currentNode, username)
+    await node.startAuthenticatedNode(currentNode, username)
     
     res.send({ token: username })
 
@@ -83,6 +83,7 @@ const loginHandler = async (req, res) => {
     })
 
     currentNode.app.profiles[currentNode.app.user].followers.forEach(async (f) => {
+      
       if(!(await node.isStillFollowing(currentNode, f))) {
         currentNode.app.profiles[currentNode.app.user].followers.delete(f)
       }
