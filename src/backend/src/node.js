@@ -105,7 +105,8 @@ module.exports.handleMessage = function(node, username, msg) {
   }
 
   // Log if it something related to current node's user
-  if (valid && node.app.user === username) logData(node, msg)
+  console.log("Logging: "+postStr)
+  if (valid && node.app.user === username) module.exports.logData(node, postStr)
 }
 
 module.exports.getProfile = async function(node, username) {
@@ -119,6 +120,8 @@ module.exports.getProfile = async function(node, username) {
       await writeStream(stream, username)
       const profile = await readStream(stream)
       let user = JSON.parse(profile)
+      if(user.err)
+        continue
       user.followers = new Set(user.followers)
       user.following = new Set(user.following)
       return user
@@ -128,6 +131,25 @@ module.exports.getProfile = async function(node, username) {
   }
   
   throw "User not found"
+}
+
+module.exports.isStillFollowing = async function(node, username) {
+  let cid = await module.exports.createCID(username)
+
+  const providers = await all(node.contentRouting.findProviders(cid, { timeout: 3000, maxNumProviders: 1 }))
+
+  for (let provider of providers) {
+    try {
+      const { stream } = await node.dialProtocol(provider.id, ['/heartbeat'])
+      await writeStream(stream, username)
+      const stillFollows = JSON.parse(await readStream(stream))
+      return stillFollows
+    } catch (error) {
+      continue
+    }
+  }
+  
+  return false
 }
 
 module.exports.profiletoJSON = function(profile) {
@@ -141,16 +163,62 @@ module.exports.profiletoJSON = function(profile) {
 module.exports.logData = function(node, msg) {
   const username = node.app.user
   
-  fs.appendFile(username + '.txt', msg, 'utf8', function (err) {
+  fs.appendFile(username + '.txt', msg+"\n", 'utf8', (err) => {
       if (err) {
-          console.log("An error occured while logging data.");
-          return console.log(err);
+          console.log("An error occured while logging data.")
+          return console.log(err)
       }
-      console.log(" > " + username + " : " + msg);
+      console.log(" > " + username + " : " + msg)
+      
+      // check log length
+      // store data in json and clean log file if length > 128
+      let data = fs.readFileSync(username+".txt","utf8")
+      const nLines = data.toString().split("\n").length
+      console.log(nLines)
+      if ((nLines-1) > 5)
+        storeData(node)
+      
   });
 
-  // check log length
-  // store data in json and clean log file if length > 128
+}
+
+const parseLogMessage = function(node, msg) {
+  const type = msg.substring(0,msg.indexOf(' '))
+  const content = msg.substring(msg.indexOf(' ')+1)
+  const username = node.app.user
+  switch (type) {
+    case "<POST>":
+      let post = JSON.parse(content)
+      node.app.profiles[username].timeline.push(post)
+      break;
+  
+      case "<FOLLOW>":
+        if(node.app.profiles[content])
+          node.app.profiles[content].following.add(username)
+        node.app.profiles[username].followers.add(content)
+        break;
+    
+      case "<FOLLOWED>":
+        if(node.app.profiles[content])
+          node.app.profiles[content].followers.add(username)
+        node.app.profiles[username].following.add(content)
+        break;
+  
+      case "<UNFOLLOW>":
+        if(node.app.profiles[content])
+          node.app.profiles[content].following.delete(username)
+        node.app.profiles[username].followers.delete(content)
+        break;
+
+    case "<UNFOLLOWED>":
+      if(node.app.profiles[content])
+        node.app.profiles[content].followers.delete(username)
+      node.app.profiles[username].following.delete(content)
+      break;
+    
+    default:
+      break;
+  }
 }
 
 const storeData = function(node) {
@@ -281,20 +349,52 @@ module.exports.startAuthenticatedNode = async function(node, username) {
 
   node.handle("/profile", async ({ stream }) => {
     let profile = await readStream(stream)
-    writeStream(stream, JSON.stringify(module.exports.profiletoJSON(node.app.profiles[profile])))
+    if(!node.app.profiles[profile])
+      writeStream(stream, JSON.stringify({err: "Not following!"}))
+    else
+      writeStream(stream, JSON.stringify(module.exports.profiletoJSON(node.app.profiles[profile])))
+  })
+
+  node.handle("/heartbeat", async ({ stream }) => {
+    let profile = await readStream(stream)
+    writeStream(stream, JSON.stringify(node.app.profiles[node.app.user].following.has(profile)))
   })
 
   try {
     let profile = await module.exports.getProfile(node, node.app.user)
-    // Save in local storage - call function storeData
+    // Save in local storage
     node.app.profiles[node.app.user] = profile
+    storeData(node)
   } catch (err) {
     console.log("No previous record found")
     // Check if username.json exists
     // Load json to node.app
+    try {
+      let profile = fs.readFileSync(username + ".json", "utf8")
+      let user = JSON.parse(profile)
+        user.followers = new Set(user.followers)
+        user.following = new Set(user.following)
+        node.app.profiles[node.app.user] = user
+    } catch (err) {
+      console.log("Couldn't find snapshot of user! Reading log...")
+    }
+
     // Check if username.txt exists
     // Update node.app
+    try {
+      let data = fs.readFileSync(username + ".txt", "utf8")
+      const lines = data.split(/\r?\n/);
+      // parse all lines
+      lines.forEach((line) => {
+        parseLogMessage(node,line)
+      });
+
+    } catch (err) {
+      console.log("Couldn't open log of user!")
+    }
   }
+
+  
 
   node.contentRouting.provide(await module.exports.createCID(node.app.user))
   node.pubsub.on(node.app.user, (msg) => module.exports.handleMessage(node, node.app.user, msg))

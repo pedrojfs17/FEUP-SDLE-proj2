@@ -78,15 +78,21 @@ const loginHandler = async (req, res) => {
     
     res.send({ token: username })
 
-    currentNode.app.profiles[currentNode.app.user].following.forEach(f => {
-      node.followRoutine(currentNode, f)
+    currentNode.app.profiles[currentNode.app.user].following.forEach(async (f) => {
+      await node.followRoutine(currentNode, f)
+    })
+
+    currentNode.app.profiles[currentNode.app.user].followers.forEach(async (f) => {
+      if(!(await node.isStillFollowing(currentNode, f))) {
+        currentNode.app.profiles[currentNode.app.user].followers.delete(f)
+      }
     })
   }
   else 
     res.send({ err: 'Invalid Credentials!'})
 }
 
-const logoutHandler = (req, res) => {
+const logoutHandler = async (req, res) => {
   if (!currentNode.isLoggedIn) return
 
   currentNode.stop()
@@ -103,10 +109,11 @@ const feedHandler = async (req, res) => {
   let posts = [...currentNode.app.profiles[currentNode.app.user].timeline]
 
   for (let user of currentNode.app.profiles[currentNode.app.user].following) {
-    if (currentNode.app.profiles[user])
-      posts = posts.concat(currentNode.app.profiles[user].timeline)
-    else
-      posts = posts.concat((await node.getProfile(currentNode, user)).timeline)
+    if (!currentNode.app.profiles[user])
+      currentNode.app.profiles[user] = await node.getProfile(currentNode, user)
+    
+    posts = posts.concat(currentNode.app.profiles[user].timeline)
+      
   }
 
   posts.sort((a,b) => {return a.timestamp - b.timestamp})
@@ -146,7 +153,10 @@ const followHandler = async (req, res) => {
   node.followRoutine(currentNode, username)
 
   currentNode.pubsub.publish(username, "<FOLLOW> " + currentNode.app.user)
-  currentNode.pubsub.publish(currentNode.app.user, "<FOLLOWED> " + username)
+
+  const followMessage = "<FOLLOWED> " + username
+  currentNode.pubsub.publish(currentNode.app.user, followMessage)
+  node.logData(currentNode,followMessage)
 
   res.json({isFollowing: true})
 }
@@ -167,7 +177,10 @@ const unfollowHandler = (req, res) => {
   currentNode.app.profiles[currentNode.app.user].following.delete(username)
 
   currentNode.pubsub.publish(username, "<UNFOLLOW> " + currentNode.app.user)
-  currentNode.pubsub.publish(currentNode.app.user, "<UNFOLLOWED> " + username)
+  
+  const unfollowMessage = "<UNFOLLOWED> " + username
+  currentNode.pubsub.publish(currentNode.app.user, unfollowMessage)
+  node.logData(currentNode,unfollowMessage)
 
   currentNode.pubsub.unsubscribe(username)
 
@@ -187,12 +200,17 @@ const userHandler = async (req, res) => {
     })
   } 
   else if(currentNode.app.profiles[currentNode.app.user].following.has(req.params.username)) {
+    if(!currentNode.app.profiles[req.params.username]) {
+      console.log("Don't have it stored locally! Fetching...")
+      currentNode.app.profiles[req.params.username] = await node.getProfile(currentNode, req.params.username)
+    }
     res.json({ 
       ...node.profiletoJSON(currentNode.app.profiles[req.params.username]),
       username: req.params.username,
       isFollowing: true,
       profile: false
     })
+    
   } 
   else {
     try {
