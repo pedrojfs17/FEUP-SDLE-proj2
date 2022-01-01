@@ -73,8 +73,8 @@ export default function NavBar({ logout }) {
     }
   }
 
-  const handleLogout = () => {
-    logoutUser()
+  const handleLogout = async () => {
+    await logoutUser()
     logout()
   }
 

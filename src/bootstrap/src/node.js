@@ -73,7 +73,6 @@ async function startNode() {
 
   console.log('Node has started:', node.isStarted())
 
-
   return node
 }
 

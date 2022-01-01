@@ -2,7 +2,8 @@ const Libp2p = require('libp2p')
 const TCP = require('libp2p-tcp')
 const MPLEX = require('libp2p-mplex')
 const { NOISE } = require('libp2p-noise')
-const Bootstrap = require('libp2p-bootstrap')
+const MulticastDNS = require('libp2p-mdns')
+// const Bootstrap = require('libp2p-bootstrap')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
@@ -11,12 +12,20 @@ const all = require('it-all')
 const { CID } = require('multiformats/cid')
 const { sha256 } = require('multiformats/hashes/sha2')
 const dagPB = require('@ipld/dag-pb')
-const delay = require('delay')
-
+const bcrypt = require('bcrypt');
+const fs = require('fs');
 
 module.exports.printAddrs = function(node) {
   console.log('Node %s is listening on:', node.peerId.toB58String())
   node.multiaddrs.forEach((ma) => console.log(`${ma.toString()}/p2p/${node.peerId.toB58String()}`))
+}
+
+module.exports.hashPassword = async function(string) {
+  return bcrypt.hash(string, 10)
+}
+
+module.exports.comparePassword = async function(password, hash) {
+  return bcrypt.compare(password, hash)
 }
 
 module.exports.createCID = async function(string) {
@@ -57,6 +66,8 @@ module.exports.handleMessage = function(node, username, msg) {
   const type = postStr.substring(0,postStr.indexOf(' '))
   const content = postStr.substring(postStr.indexOf(' ')+1)
 
+  let valid = true
+
   switch (type) {
     case "<POST>":
       let post = JSON.parse(content)
@@ -68,35 +79,33 @@ module.exports.handleMessage = function(node, username, msg) {
       if(node.app.profiles[content])
         node.app.profiles[content].following.add(username)
       node.app.profiles[username].followers.add(content)
-
-      console.log(content+ " followed "+ username)
       break;
   
     case "<FOLLOWED>":
       if(node.app.profiles[content])
         node.app.profiles[content].followers.add(username)
       node.app.profiles[username].following.add(content)
-
-      console.log(username+ " followed "+ content)
       break;
 
     case "<UNFOLLOW>":
       if(node.app.profiles[content])
         node.app.profiles[content].following.delete(username)
       node.app.profiles[username].followers.delete(content)
-      console.log(content+ " unfollowed "+ username)
       break;
 
     case "<UNFOLLOWED>":
       if(node.app.profiles[content])
         node.app.profiles[content].followers.delete(username)
       node.app.profiles[username].following.delete(content)
-      console.log(username+ " unfollowed "+ content)
       break;
     
     default:
+      valid = false
       break;
   }
+
+  // Log if it something related to current node's user
+  if (valid && node.app.user === username) logData(node, msg)
 }
 
 module.exports.getProfile = async function(node, username) {
@@ -117,6 +126,7 @@ module.exports.getProfile = async function(node, username) {
       continue
     }
   }
+  
   throw "User not found"
 }
 
@@ -126,6 +136,42 @@ module.exports.profiletoJSON = function(profile) {
     followers: [...profile.followers],
     following: [...profile.following]
   }
+}
+
+module.exports.logData = function(node, msg) {
+  const username = node.app.user
+  
+  fs.appendFile(username + '.txt', msg, 'utf8', function (err) {
+      if (err) {
+          console.log("An error occured while logging data.");
+          return console.log(err);
+      }
+      console.log(" > " + username + " : " + msg);
+  });
+
+  // check log length
+  // store data in json and clean log file if length > 128
+}
+
+const storeData = function(node) {
+  const username = node.app.user
+  const jsonData = module.exports.profiletoJSON(node.app.profiles[node.app.user])
+  
+  fs.writeFile(username + '.json', JSON.stringify(jsonData), (err) => {
+    if (err) {
+      console.log("An error occured while writing JSON Object to File.");
+      return console.log(err);
+    }
+    console.log("> " + username + " data has been saved in local storage.");
+  });
+
+  fs.truncate(username + '.txt', (err) => {
+    if (err) {
+      console.log("An error occured while cleaning log file.");
+      return console.log(err);
+    }
+    console.log("> " + username + " log file has been cleaned up.");
+  })
 }
 
 const readStream = async function(stream) {
@@ -148,7 +194,7 @@ const writeStream = function(stream, message) {
   )
 }
 
-module.exports.startNode = async function(username, password) {
+module.exports.startNode = async function() {
   const peerId = await PeerId.create()
 
   const node = await Libp2p.create({
@@ -162,7 +208,7 @@ module.exports.startNode = async function(username, password) {
       ],
       streamMuxer: [MPLEX],
       connEncryption: [NOISE],
-      peerDiscovery: [Bootstrap],
+      peerDiscovery: [MulticastDNS],
       dht: DHT,
       pubsub: GossipSub,
     },
@@ -177,12 +223,7 @@ module.exports.startNode = async function(username, password) {
     config: {
       peerDiscovery: {
         autoDial: true,
-        [Bootstrap.tag]: {
-          list: [ // a list of bootstrap peer multiaddrs to connect to on node startup
-            "/ip4/127.0.0.1/tcp/6001/p2p/QmVVP9rWw5yLCbZVQzoDSUZrz7VcS14TQ3GL2X5yXqqcPb",
-            "/ip4/127.0.0.1/tcp/7001/p2p/QmcMhtRvVXPtLzRuGUjrrUGeALfCPPPxG3uxXWdBX7qd8q",
-            "/ip4/127.0.0.1/tcp/8001/p2p/QmTv6dFFFhtUB37tJDuFghRkvGfP9CDfYC77sBVnAHmrU2",
-            ],
+        [MulticastDNS.tag]: {
           interval: 1000,
           enabled: true
         },
@@ -205,27 +246,6 @@ module.exports.startNode = async function(username, password) {
 
   node.connectionManager.on('peer:connect', async (connection) => {
     console.log('Connected to %s', connection.remotePeer.toB58String())
-    await delay(1000)
-    // Provide following users
-    node.contentRouting.provide(await module.exports.createCID(node.app.user))
-  })
-
-  node.app = {
-    token: await module.exports.createCID("username:" + username + ";password:" + password),
-    user: username,
-    peerId: node.peerId.toB58String(),
-    profiles: {}
-  }
-
-  node.app.profiles[username] = {
-    followers: new Set([]),
-    following : new Set([]),
-    timeline: []
-  }
-
-  node.handle("/profile", async ({ stream }) => {
-    let profile = await readStream(stream)
-    writeStream(stream, JSON.stringify(module.exports.profiletoJSON(node.app.profiles[profile])))
   })
 
   await node.start()
@@ -240,14 +260,42 @@ module.exports.startNode = async function(username, password) {
   console.log('Node has started:', node.isStarted())
   module.exports.printAddrs(node)
 
-  await delay(2000)
-  try {
-    let profile = await module.exports.getProfile(node,node.app.user)
-    node.app.profiles[node.app.user] = profile
-    
-  } catch (err) {
-    console.log("No previous record found")
+  return node
+}
+
+
+module.exports.startAuthenticatedNode = async function(node, username) {
+  node.app = {
+    user: username,
+    peerId: node.peerId.toB58String(),
+    profiles: {}
   }
 
-  return node
+  node.isLoggedIn = true
+
+  node.app.profiles[username] = {
+    followers: new Set([]),
+    following : new Set([]),
+    timeline: []
+  }
+
+  node.handle("/profile", async ({ stream }) => {
+    let profile = await readStream(stream)
+    writeStream(stream, JSON.stringify(module.exports.profiletoJSON(node.app.profiles[profile])))
+  })
+
+  try {
+    let profile = await module.exports.getProfile(node, node.app.user)
+    node.app.profiles[node.app.user] = profile
+  } catch (err) {
+    console.log("No previous record found")
+    // Check if username.json exists
+    // Load json to node.app
+    // Check if username.txt exists
+    // Update node.app
+  }
+
+  node.contentRouting.provide(await module.exports.createCID(node.app.user))
+  node.pubsub.on(node.app.user, (msg) => module.exports.handleMessage(node, node.app.user, msg))
+  node.pubsub.subscribe(node.app.user)
 }

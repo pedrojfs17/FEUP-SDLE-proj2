@@ -36,8 +36,9 @@ const CustomLoadingButton = styled(LoadingButton)(({ theme }) => ({
   },
 }));
 
-async function loginUser(credentials) {
-  return fetch(`http://localhost:${REACT_APP_BACKEND_PORT}/login`, {
+async function authenticateUser(credentials, login) {
+  let url = `http://localhost:${REACT_APP_BACKEND_PORT}/` + (login ? 'login' : 'register')
+  return fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -53,12 +54,12 @@ export default function LoginForm({ setToken }) {
   const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
 
-  const handleLogin = async (e) => {
+  const handleClick = async (e, login) => {
     setLoading(true)
-    const res = await loginUser({
+    const res = await authenticateUser({
       username,
       password
-    });
+    }, login);
 
     if (res.err) {
       setError(res.err)
@@ -95,7 +96,8 @@ export default function LoginForm({ setToken }) {
           </PublishField>
         </Stack>
       </Stack>
-      <CustomLoadingButton onClick={handleLogin} loading={loading} variant="contained" size="large" sx={{ margin: '2em 0em', float: 'right' }}>Login</CustomLoadingButton>
+      <CustomLoadingButton onClick={(e) => handleClick(e, true)} loading={loading} variant="contained" size="large" sx={{ margin: '2em 0em', float: 'right' }}>Login</CustomLoadingButton>
+      <CustomLoadingButton onClick={(e) => handleClick(e, false)} loading={loading} variant="contained" size="large" sx={{ margin: '2em 1em', float: 'right' }}>Register</CustomLoadingButton>
     </LoginContainer>
   );
 }

@@ -1,44 +1,44 @@
 version: '3.8'
 
 services:
-  bootstrap1:
-    build:
-      dockerfile: Dockerfile
-      context: "./bootstrap"
-    environment:
-      - PORT=6001
-      - KEY_FILE=b_1.json
-    ports:
-      - 6001:6001
-    volumes:
-      - /app/node_modules
-      - ./bootstrap:/app
+  # bootstrap1:
+  #   build:
+  #     dockerfile: Dockerfile
+  #     context: "./bootstrap"
+  #   environment:
+  #     - PORT=6001
+  #     - KEY_FILE=b_1.json
+  #   ports:
+  #     - 6001:6001
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./bootstrap:/app
 
-  bootstrap2:
-    build:
-      dockerfile: Dockerfile
-      context: "./bootstrap"
-    environment:
-      - PORT=7001
-      - KEY_FILE=b_2.json
-    ports:
-      - 7001:7001
-    volumes:
-      - /app/node_modules
-      - ./bootstrap:/app
+  # bootstrap2:
+  #   build:
+  #     dockerfile: Dockerfile
+  #     context: "./bootstrap"
+  #   environment:
+  #     - PORT=7001
+  #     - KEY_FILE=b_2.json
+  #   ports:
+  #     - 7001:7001
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./bootstrap:/app
   
-  bootstrap3:
-    build:
-      dockerfile: Dockerfile
-      context: "./bootstrap"
-    environment:
-      - PORT=8001
-      - KEY_FILE=b_3.json
-    ports:
-      - 8001:8001
-    volumes:
-      - /app/node_modules
-      - ./bootstrap:/app
+  # bootstrap3:
+  #   build:
+  #     dockerfile: Dockerfile
+  #     context: "./bootstrap"
+  #   environment:
+  #     - PORT=8001
+  #     - KEY_FILE=b_3.json
+  #   ports:
+  #     - 8001:8001
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./bootstrap:/app
 
   backend1:
     build:
