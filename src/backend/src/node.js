@@ -15,6 +15,9 @@ const dagPB = require('@ipld/dag-pb')
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 
+const ITEMS_PER_USER = process.env.ITEMS_PER_USER || 100; // 100 posts
+const EXPIRATION_TIME = process.env.EXPIRATION_TIME || 1000 * 3600 * 24; // 24 hours
+
 module.exports.printAddrs = function(node) {
   console.log('Node %s is listening on:', node.peerId.toB58String())
   node.multiaddrs.forEach((ma) => console.log(`${ma.toString()}/p2p/${node.peerId.toB58String()}`))
@@ -72,7 +75,11 @@ module.exports.handleMessage = function(node, username, msg) {
     case "<POST>":
       let post = JSON.parse(content)
       node.app.profiles[username].timeline.push(post)
-      node.app.profiles[username].timeline = node.app.profiles[username].timeline.filter(p => {return (new Date().getTime() - p.timestamp) < (1000*60)}) //less than 24h (1000*3600*24)  
+
+      while (node.app.profiles[username].timeline.length > ITEMS_PER_USER)
+        node.app.profiles[username].timeline.shift()
+
+      node.app.profiles[username].timeline = node.app.profiles[username].timeline.filter(p => {return (new Date().getTime() - p.timestamp) < EXPIRATION_TIME}) 
       break;
 
     case "<FOLLOW>":
