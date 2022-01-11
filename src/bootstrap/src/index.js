@@ -6,6 +6,8 @@ const MulticastDNS = require('libp2p-mdns')
 const DHT = require('libp2p-kad-dht')
 const PeerId = require('peer-id')
 
+require('dotenv').config()
+
 async function createID() {
   const peerID = await PeerId.create({keytype: "Ed25519", bits: 1024})
   console.log(JSON.stringify(peerID.toJSON()))

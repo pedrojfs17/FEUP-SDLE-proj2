@@ -3,7 +3,7 @@ const TCP = require('libp2p-tcp')
 const MPLEX = require('libp2p-mplex')
 const { NOISE } = require('libp2p-noise')
 const MulticastDNS = require('libp2p-mdns')
-// const Bootstrap = require('libp2p-bootstrap')
+const Bootstrap = require('libp2p-bootstrap')
 const DHT = require('libp2p-kad-dht')
 const GossipSub = require('libp2p-gossipsub')
 const PeerId = require('peer-id')
@@ -14,6 +14,13 @@ const { sha256 } = require('multiformats/hashes/sha2')
 const dagPB = require('@ipld/dag-pb')
 const bcrypt = require('bcrypt');
 const fs = require('fs');
+
+const BOOTSTRAP_IP = process.env.BOOTSTRAP_IP || "127.0.0.1"
+const BOOTSTRAP_IDS = [
+  "QmVVP9rWw5yLCbZVQzoDSUZrz7VcS14TQ3GL2X5yXqqcPb",
+  "QmcMhtRvVXPtLzRuGUjrrUGeALfCPPPxG3uxXWdBX7qd8q",
+  "QmTv6dFFFhtUB37tJDuFghRkvGfP9CDfYC77sBVnAHmrU2"
+]
 
 const ITEMS_PER_USER = process.env.ITEMS_PER_USER || 100; // 100 posts
 const EXPIRATION_TIME = process.env.EXPIRATION_TIME || 1000 * 3600 * 24; // 24 hours
@@ -280,7 +287,7 @@ module.exports.startNode = async function() {
       ],
       streamMuxer: [MPLEX],
       connEncryption: [NOISE],
-      peerDiscovery: [MulticastDNS],
+      peerDiscovery: [Bootstrap, MulticastDNS],
       dht: DHT,
       pubsub: GossipSub,
     },
@@ -295,6 +302,15 @@ module.exports.startNode = async function() {
     config: {
       peerDiscovery: {
         autoDial: true,
+        [Bootstrap.tag]: {
+          list: [
+            `/ip4/${BOOTSTRAP_IP}/tcp/8001/p2p/${BOOTSTRAP_IDS[0]}`,
+            `/ip4/${BOOTSTRAP_IP}/tcp/8002/p2p/${BOOTSTRAP_IDS[1]}`,
+            `/ip4/${BOOTSTRAP_IP}/tcp/8003/p2p/${BOOTSTRAP_IDS[2]}`
+          ],
+          interval: 1000,
+          enabled: true
+        },
         [MulticastDNS.tag]: {
           interval: 1000,
           enabled: true

@@ -3,7 +3,7 @@ const bp = require('body-parser')
 const cors = require('cors');
 const node = require("./node");
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3001;
 
 let currentNode = null
 
