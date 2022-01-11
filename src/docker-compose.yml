@@ -1,25 +1,15 @@
 version: '3.8'
 
 services:
-  # bootstrap:
-  #   build:
-  #     dockerfile: Dockerfile
-  #     context: ./bootstrap
-  #   environment:
-  #     - PORT=${REACT_APP_FRONTEND_PORT}
-  #     - KEY_FILE=${REACT_APP_BACKEND_PORT}
-  #   ports:
-  #     - ${REACT_APP_FRONTEND_PORT}:${REACT_APP_FRONTEND_PORT}
-  #   volumes:
-  #     - /app/node_modules
-  #     - ./bootstrap:/app
-      
   backend:
     build:
       dockerfile: Dockerfile
       context: "./backend"
     environment:
       - PORT=${REACT_APP_BACKEND_PORT}
+      - BOOTSTRAP_IP=${BOOTSTRAP_IP}
+      - ITEMS_PER_USER=${ITEMS_PER_USER}
+      - EXPIRATION_TIME=${EXPIRATION_TIME}
     ports:
       - ${REACT_APP_BACKEND_PORT}:${REACT_APP_BACKEND_PORT}
     volumes:
