@@ -395,7 +395,7 @@ module.exports.startAuthenticatedNode = async function(node, username) {
         user.followers = new Set(user.followers)
         user.following = new Set(user.following)
         node.app.profiles[node.app.user] = user
-    } catch (err) {
+    } catch (_err) {
       console.log("Couldn't find snapshot of user! Reading log...")
     }
 
@@ -409,12 +409,10 @@ module.exports.startAuthenticatedNode = async function(node, username) {
         parseLogMessage(node,line)
       });
 
-    } catch (err) {
+    } catch (_err) {
       console.log("Couldn't open log of user!")
     }
   }
-
-  
 
   node.contentRouting.provide(await module.exports.createCID(node.app.user))
   node.pubsub.on(node.app.user, (msg) => module.exports.handleMessage(node, node.app.user, msg))

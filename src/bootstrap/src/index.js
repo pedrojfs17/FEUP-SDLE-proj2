@@ -6,15 +6,8 @@ const MulticastDNS = require('libp2p-mdns')
 const DHT = require('libp2p-kad-dht')
 const PeerId = require('peer-id')
 
-require('dotenv').config()
-
-async function createID() {
-  const peerID = await PeerId.create({keytype: "Ed25519", bits: 1024})
-  console.log(JSON.stringify(peerID.toJSON()))
-}
-
 const PORT = process.env.PORT
-const KEY_FILE = "../keys/"+process.env.KEY_FILE
+const KEY_FILE = "../keys/" + process.env.KEY_FILE
 
 async function startNode() {
   const peerId = await PeerId.createFromJSON(require(KEY_FILE))
@@ -77,7 +70,5 @@ async function startNode() {
 
   return node
 }
-
-//createID().then(()=>{})
 
 startNode().then(()=> {console.log("Bootstrap started")})
