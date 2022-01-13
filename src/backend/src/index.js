@@ -194,6 +194,7 @@ const userHandler = async (req, res) => {
   if (!currentNode.isLoggedIn) return
 
   if (!req.params.username || req.params.username === currentNode.app.user) {
+    console.log(node.profiletoJSON(currentNode.app.profiles[currentNode.app.user]))
     res.json({ 
       ...node.profiletoJSON(currentNode.app.profiles[currentNode.app.user]),
       username: currentNode.app.user,

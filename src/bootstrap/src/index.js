@@ -42,9 +42,7 @@ async function startNode() {
         },
       },
       dht: {
-        kBucketSize: 20,
         enabled: true,
-        clientMode: true
       }
     }
   })

@@ -153,7 +153,7 @@ module.exports.isStillFollowing = async function(node, username) {
   for (let provider of providers) {
     try {
       const { stream } = await node.dialProtocol(provider.id, ['/heartbeat'])
-      await writeStream(stream, username)
+      await writeStream(stream, node.app.user)
       const stillFollows = JSON.parse(await readStream(stream))
       return stillFollows
     } catch (error) {
@@ -321,9 +321,7 @@ module.exports.startNode = async function() {
         emitSelf: false,
       },
       dht: {
-        kBucketSize: 20,
         enabled: true,
-        clientMode: true
       }
     }
   })
@@ -383,6 +381,7 @@ module.exports.startAuthenticatedNode = async function(node, username) {
   try {
     let profile = await module.exports.getProfile(node, node.app.user)
     // Save in local storage
+    console.log(profile)
     node.app.profiles[node.app.user] = profile
     storeData(node)
   } catch (err) {
